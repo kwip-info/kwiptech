@@ -1,0 +1,31 @@
+{% extends "_layouts/dashboard.html" %}
+
+{% block title %}Members - scoped{% endblock %}
+
+{% block page_content %}
+<div class="space-y-4">
+    {% for mem in memberships %}
+    <div class="rounded-lg border border-gray-200 bg-white p-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-900">
+                    {{ mem.account.email|default:mem.account.id }}
+                </p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    Joined {{ mem.joined_at|date:"M j, Y" }}
+                </p>
+            </div>
+            <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset
+                         {% if mem.role.name == 'Owner' %}bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-600/20
+                         {% elif mem.role.name == 'Admin' %}bg-blue-50 text-blue-700 ring-blue-600/20
+                         {% elif mem.role.name == 'Developer' %}bg-green-50 text-green-700 ring-green-600/20
+                         {% else %}bg-gray-50 text-gray-600 ring-gray-500/20{% endif %}">
+                {{ mem.role.name }}
+            </span>
+        </div>
+    </div>
+    {% empty %}
+    {% include "components/_empty_state.html" with empty_title="No members" empty_description="This organization has no members yet." %}
+    {% endfor %}
+</div>
+{% endblock %}

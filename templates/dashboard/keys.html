@@ -1,0 +1,62 @@
+{% extends "_layouts/dashboard.html" %}
+
+{% block title %}API Keys - scoped{% endblock %}
+
+{% block page_content %}
+<!-- Actions bar -->
+<div class="mb-6 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <p class="text-sm text-gray-500">
+            Keys for the {{ active_env }} environment
+        </p>
+        {% if show_revoked %}
+        <a href="?show_revoked=0" class="text-xs font-medium text-brand-600 hover:text-brand-500">Hide revoked</a>
+        {% else %}
+        <a href="?show_revoked=1" class="text-xs font-medium text-gray-500 hover:text-gray-700">Show revoked</a>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{% url 'dashboard:key_analytics' %}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Analytics
+        </a>
+        {% include "dashboard/_key_create_modal.html" %}
+    </div>
+</div>
+
+<!-- Key list -->
+<div class="space-y-3">
+    {% for key in keys %}
+        {% include "dashboard/_key_card.html" with key=key %}
+    {% empty %}
+        {% if show_revoked %}
+            {% include "components/_empty_state.html" with empty_title="No API keys" empty_description="No keys found for this environment." %}
+        {% else %}
+            {% include "components/_empty_state.html" with empty_title="No active API keys" empty_description="Create your first API key to start integrating." %}
+        {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if keys.has_other_pages %}
+<nav class="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+    <p class="text-sm text-gray-500">
+        Page {{ keys.number }} of {{ keys.paginator.num_pages }}
+    </p>
+    <div class="flex items-center gap-2">
+        {% if keys.has_previous %}
+        <a href="?page={{ keys.previous_page_number }}{% if show_revoked %}&show_revoked=1{% endif %}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Previous
+        </a>
+        {% endif %}
+        {% if keys.has_next %}
+        <a href="?page={{ keys.next_page_number }}{% if show_revoked %}&show_revoked=1{% endif %}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Next
+        </a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}
+{% endblock %}

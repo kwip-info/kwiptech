@@ -1,0 +1,18 @@
+<div class="text-center py-12">
+    <div class="mx-auto max-w-md">
+        <h3 class="text-sm font-semibold text-gray-900">
+            {{ empty_title|default:"Nothing here yet" }}
+        </h3>
+        {% if empty_description %}
+            <p class="mt-1 text-sm text-gray-500">{{ empty_description }}</p>
+        {% endif %}
+        {% if empty_action_url and empty_action_label %}
+            <div class="mt-6">
+                <a href="{{ empty_action_url }}"
+                   class="inline-flex items-center rounded-md bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-500 transition-colors">
+                    {{ empty_action_label }}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>

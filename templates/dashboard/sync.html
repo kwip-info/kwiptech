@@ -1,0 +1,147 @@
+{% extends "_layouts/dashboard.html" %}
+
+{% block title %}Sync Status - scoped{% endblock %}
+
+{% block page_content %}
+{% if health %}
+<!-- Connection status -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="rounded-lg border border-gray-200 bg-white p-5">
+        <p class="text-sm font-medium text-gray-500">Status</p>
+        <div class="mt-2 flex items-center gap-2">
+            <span class="h-3 w-3 rounded-full
+                         {% if health.status == 'connected' %}bg-green-500
+                         {% elif health.status == 'idle' %}bg-amber-500
+                         {% else %}bg-red-500{% endif %}"></span>
+            <p class="text-lg font-semibold
+                      {% if health.status == 'connected' %}text-green-600
+                      {% elif health.status == 'idle' %}text-amber-600
+                      {% else %}text-red-600{% endif %}">
+                {{ health.status|title }}
+            </p>
+        </div>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-5">
+        <p class="text-sm font-medium text-gray-500">Last Sync</p>
+        <p class="mt-2 text-lg font-semibold text-gray-900">
+            {% if health.last_sync %}{{ health.last_sync|timesince }} ago{% else %}Never{% endif %}
+        </p>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-5">
+        <p class="text-sm font-medium text-gray-500">Total Entries</p>
+        <p class="mt-2 text-lg font-semibold text-gray-900">{{ health.total_entries }}</p>
+        <p class="mt-1 text-xs text-gray-500">Sequence: {{ health.last_sequence }}</p>
+    </div>
+    <div class="rounded-lg border border-gray-200 bg-white p-5">
+        <p class="text-sm font-medium text-gray-500">SDK Version</p>
+        <p class="mt-2 text-lg font-semibold text-gray-900">{{ health.sdk_version|default:"--" }}</p>
+    </div>
+</div>
+
+<!-- Chain integrity -->
+{% if integrity %}
+<div class="mb-8 rounded-lg border p-4
+            {% if integrity.verified %}border-green-200 bg-green-50
+            {% else %}border-red-200 bg-red-50{% endif %}">
+    <div class="flex items-center gap-2">
+        {% if integrity.verified %}
+        <svg class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        <p class="text-sm font-medium text-green-800">{{ integrity.message }}</p>
+        {% else %}
+        <svg class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-sm font-medium text-red-800">{{ integrity.message }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Batch throughput chart -->
+<div class="rounded-lg border border-gray-200 bg-white p-5 mb-8">
+    <p class="text-sm font-medium text-gray-500 mb-4">Batch Throughput (30 days)</p>
+    <div x-data x-init="
+        let tp = {{ throughput }};
+        if (tp) {
+            new ApexCharts($refs.throughputChart, {
+                chart: { type: 'area', height: 200, toolbar: { show: false } },
+                series: [{ name: 'Batches', data: tp.data }],
+                xaxis: { categories: tp.labels, labels: { show: false } },
+                colors: ['#3b82f6'],
+                stroke: { curve: 'smooth', width: 2 },
+                fill: { type: 'gradient', gradient: { opacityFrom: 0.3, opacityTo: 0.05 } },
+                dataLabels: { enabled: false },
+                grid: { borderColor: '#f3f4f6' },
+                yaxis: { labels: { style: { fontSize: '11px' } } },
+            }).render();
+        }
+    ">
+        <div x-ref="throughputChart"></div>
+    </div>
+</div>
+
+<!-- Batch history table -->
+<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
+        <p class="text-sm font-medium text-gray-500">Batch History</p>
+    </div>
+    {% if batches %}
+    <table class="w-full">
+        <thead>
+            <tr class="border-b border-gray-100">
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase">Received</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entries</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sequence Range</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase">SDK</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase">Chain Hash</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for batch in batches %}
+            <tr>
+                <td class="px-5 py-3 text-sm text-gray-900 whitespace-nowrap">{{ batch.received_at|date:"M j, g:i A" }}</td>
+                <td class="px-5 py-3 text-sm text-gray-900">{{ batch.entry_count }}</td>
+                <td class="px-5 py-3 text-sm text-gray-500">{{ batch.first_sequence }}-{{ batch.last_sequence }}</td>
+                <td class="px-5 py-3 text-sm text-gray-500">{{ batch.sdk_version }}</td>
+                <td class="px-5 py-3 text-xs text-gray-400 font-mono">{{ batch.chain_hash|truncatechars:16 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if batches.has_other_pages %}
+    <nav class="px-5 py-3 flex items-center justify-between border-t border-gray-100">
+        <p class="text-sm text-gray-500">Page {{ batches.number }} of {{ batches.paginator.num_pages }}</p>
+        <div class="flex items-center gap-2">
+            {% if batches.has_previous %}
+            <a href="?page={{ batches.previous_page_number }}"
+               class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Previous</a>
+            {% endif %}
+            {% if batches.has_next %}
+            <a href="?page={{ batches.next_page_number }}"
+               class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Next</a>
+            {% endif %}
+        </div>
+    </nav>
+    {% endif %}
+    {% else %}
+    <div class="px-5 py-8 text-center">
+        <p class="text-sm text-gray-500">No batches received yet.</p>
+        <a href="{% url 'dashboard:getting_started' %}" class="mt-2 inline-block text-sm text-brand-600 hover:text-brand-500">Setup guide</a>
+    </div>
+    {% endif %}
+</div>
+
+{% else %}
+<!-- No sync data -->
+<div class="rounded-lg border border-gray-200 bg-white p-8 text-center">
+    <p class="text-lg font-semibold text-gray-900">No sync agent connected</p>
+    <p class="mt-2 text-sm text-gray-500">Connect a sync agent to see batch history, throughput metrics, and chain integrity.</p>
+    <a href="{% url 'dashboard:getting_started' %}"
+       class="mt-4 inline-block rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500">
+        Setup guide
+    </a>
+</div>
+{% endif %}
+{% endblock %}

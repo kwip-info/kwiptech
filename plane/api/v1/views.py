@@ -81,6 +81,55 @@ def ingest_batch(request):
     # or a pre-derived signing key stored alongside the key_hash.
     # For now, we accept the batch and log it.
 
+    # Plan limit enforcement
+    org = account.personal_organization
+    if org:
+        from plane.billing.models import Plan as PlanModel
+        plan_obj = PlanModel.objects.filter(id=org.plan).first()
+        if plan_obj and plan_obj.overage_per_object_cents == 0:
+            # Free tier — hard limits
+            counts = batch.resource_counts
+            errors = []
+            if counts.active_objects > plan_obj.max_objects:
+                errors.append(
+                    f"Object limit exceeded: {counts.active_objects}/{plan_obj.max_objects}"
+                )
+            if counts.active_principals > plan_obj.max_principals:
+                errors.append(
+                    f"Principal limit exceeded: {counts.active_principals}/{plan_obj.max_principals}"
+                )
+            if errors:
+                ack = SyncBatchAck(
+                    batch_id=batch.batch_id,
+                    accepted=False,
+                    server_sequence=0,
+                    server_chain_hash="",
+                    message="Plan limits exceeded",
+                    errors=errors,
+                )
+                return Response(ack.model_dump(mode="json"), status=status.HTTP_402_PAYMENT_REQUIRED)
+
+        # Sync interval enforcement
+        if plan_obj:
+            last_batch = (
+                SyncBatchRecord.objects
+                .filter(account=account)
+                .order_by("-received_at")
+                .first()
+            )
+            if last_batch:
+                from django.utils import timezone
+                elapsed = (timezone.now() - last_batch.received_at).total_seconds()
+                if elapsed < plan_obj.min_sync_interval_seconds:
+                    ack = SyncBatchAck(
+                        batch_id=batch.batch_id,
+                        accepted=False,
+                        server_sequence=last_batch.last_sequence,
+                        server_chain_hash=last_batch.chain_hash,
+                        message=f"Sync interval not met: {int(elapsed)}s/{plan_obj.min_sync_interval_seconds}s",
+                    )
+                    return Response(ack.model_dump(mode="json"), status=status.HTTP_429_TOO_MANY_REQUESTS)
+
     # Deduplication — check if we've already received this batch
     if SyncBatchRecord.objects.filter(id=batch.batch_id).exists():
         ack = SyncBatchAck(
@@ -331,21 +380,38 @@ def get_usage(request):
 
 @api_view(["GET"])
 def get_plan(request):
-    """Get current plan details."""
+    """Get current plan details from the Plan model."""
     account: Account = request.user
-    # For now, return free plan defaults
-    data = {
-        "plan": account.plan,
-        "limits": {
-            "max_objects": 1000 if account.plan == "free" else 100000,
-            "max_principals": 50 if account.plan == "free" else 10000,
-            "audit_retention_days": 7 if account.plan == "free" else 90,
-            "min_sync_interval_seconds": 3600 if account.plan == "free" else 60,
-            "tier": account.plan,
-        },
-        "overage_allowed": account.plan != "free",
-    }
-    return Response(data)
+    org = account.personal_organization
+    plan_id = org.plan if org else "free"
+
+    from plane.billing.models import Plan
+    plan_obj = Plan.objects.filter(id=plan_id).first()
+
+    if plan_obj:
+        limits = {
+            "max_objects": plan_obj.max_objects,
+            "max_principals": plan_obj.max_principals,
+            "audit_retention_days": plan_obj.audit_retention_days,
+            "min_sync_interval_seconds": plan_obj.min_sync_interval_seconds,
+            "tier": plan_obj.id,
+        }
+        overage_allowed = plan_obj.overage_per_object_cents > 0
+    else:
+        limits = {
+            "max_objects": 1000,
+            "max_principals": 50,
+            "audit_retention_days": 7,
+            "min_sync_interval_seconds": 3600,
+            "tier": "free",
+        }
+        overage_allowed = False
+
+    return Response({
+        "plan": plan_id,
+        "limits": limits,
+        "overage_allowed": overage_allowed,
+    })
 
 
 # =========================================================================
@@ -353,13 +419,22 @@ def get_plan(request):
 # =========================================================================
 
 def _update_peak_usage(account: Account, objects: int, principals: int, entries: int):
-    """Update peak counts for the current billing period."""
-    period = (
-        BillingPeriod.objects
-        .filter(account=account, finalized=False)
-        .order_by("-period_start")
-        .first()
-    )
+    """Update peak counts for the current billing period.
+
+    Auto-creates the billing period if none exists.
+    """
+    from plane.billing.tasks import ensure_billing_period
+
+    org = account.personal_organization
+    if org:
+        period = ensure_billing_period(org, account)
+    else:
+        period = (
+            BillingPeriod.objects
+            .filter(account=account, finalized=False)
+            .order_by("-period_start")
+            .first()
+        )
     if period is None:
         return
 

@@ -11,6 +11,10 @@ principal and appears in the pyscoped audit trail.
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def resolve_principal(request):
     """Resolve the acting pyscoped principal from the request.
@@ -22,8 +26,10 @@ def resolve_principal(request):
         A pyscoped ``Principal`` object, or ``None`` if the request
         is unauthenticated.
     """
-    # request.user is set by DRF's ApiKeyAuthentication to the Account
-    account = getattr(request, "user", None)
+    # Dashboard auth (Clerk JWT) sets clerk_user; API auth sets user
+    account = getattr(request, "clerk_user", None)
+    if account is None:
+        account = getattr(request, "user", None)
     if account is None or not hasattr(account, "id"):
         return None
 
@@ -38,8 +44,13 @@ def resolve_principal(request):
         return principal
 
     # First time this account hits the platform — create a principal
-    return client.principals.create(
-        str(account),
-        kind="account",
-        principal_id=account.id,
-    )
+    try:
+        return client.principals.create(
+            str(account),
+            kind="account",
+            principal_id=account.id,
+        )
+    except Exception:
+        # Principal may already exist (race condition or registry conflict)
+        logger.debug("Principal create failed for %s, retrying find", account.id)
+        return client.principals.find(account.id)

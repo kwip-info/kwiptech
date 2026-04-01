@@ -1,0 +1,29 @@
+<div class="flex gap-3">
+    <div class="flex flex-col items-center">
+        <div class="flex h-6 w-6 items-center justify-center rounded-full
+                    {% if entry.action == 'create' %}bg-green-100 text-green-600
+                    {% elif entry.action == 'update' %}bg-blue-100 text-blue-600
+                    {% elif entry.action == 'delete' or entry.action == 'tombstone' %}bg-red-100 text-red-600
+                    {% else %}bg-gray-100 text-gray-600{% endif %}">
+            <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 8 8">
+                <circle cx="4" cy="4" r="3" />
+            </svg>
+        </div>
+        <div class="w-px flex-1 bg-gray-200"></div>
+    </div>
+    <div class="pb-4">
+        <p class="text-sm text-gray-900">
+            <span class="font-medium">{{ entry.action }}</span>
+            {{ entry.target_type }}
+        </p>
+        <p class="mt-0.5 text-xs text-gray-500">
+            {% if entry.actor_id == 'system' %}
+                System
+            {% else %}
+                Account {{ entry.actor_id|truncatechars:12 }}
+            {% endif %}
+            &middot;
+            {{ entry.timestamp|date:"M j, Y g:i A" }}
+        </p>
+    </div>
+</div>

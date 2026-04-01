@@ -1,0 +1,153 @@
+{% extends "_layouts/dashboard.html" %}
+
+{% block title %}{{ api_key.key_prefix }}... - scoped{% endblock %}
+
+{% block page_content %}
+{% if pending_key %}
+<div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-5">
+    <p class="text-sm font-semibold text-gray-900">New key after rotation</p>
+    <p class="mt-1 text-xs text-gray-600">Copy this key now. It will not be shown again.</p>
+    <div class="mt-3 flex items-center gap-2">
+        <code class="flex-1 rounded-md bg-white border border-green-200 px-3 py-2 text-sm font-mono text-gray-900 select-all">{{ pending_key }}</code>
+        <button onclick="copyToClipboard('{{ pending_key }}')"
+                type="button"
+                class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500">
+            Copy
+        </button>
+    </div>
+</div>
+{% endif %}
+
+<!-- Key metadata -->
+<div class="rounded-lg border border-gray-200 bg-white p-6">
+    <div class="flex items-start justify-between">
+        <div>
+            <div class="flex items-center gap-3">
+                <code class="text-base font-mono text-gray-900">{{ api_key.key_prefix }}...</code>
+                {% if api_key.is_active %}
+                <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+                {% else %}
+                <span class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">Revoked</span>
+                {% endif %}
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{{ api_key.environment }}</span>
+            </div>
+            {% if api_key.label %}
+            <p class="mt-2 text-sm text-gray-600">{{ api_key.label }}</p>
+            {% endif %}
+        </div>
+        {% if api_key.is_active %}
+        <div class="flex items-center gap-2">
+            <form method="post" action="{% url 'dashboard:rotate_key' api_key.id %}"
+                  x-data @submit.prevent="confirmAction({ title: 'Rotate this key?', message: 'A new key will be created and this one will be revoked.', action: 'Rotate', form: $el })">
+                {% csrf_token %}
+                <button type="submit" class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    Rotate
+                </button>
+            </form>
+            <form method="post" action="{% url 'dashboard:revoke_key' api_key.id %}"
+                  x-data @submit.prevent="confirmAction({ title: 'Revoke API key?', message: 'This key will stop working immediately. This cannot be undone.', action: 'Revoke', destructive: true, form: $el })">
+                {% csrf_token %}
+                <button type="submit" class="rounded-md px-3 py-1.5 text-sm font-medium text-red-600 ring-1 ring-inset ring-red-200 hover:bg-red-50">
+                    Revoke
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Metadata grid -->
+    <dl class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div>
+            <dt class="text-xs font-medium text-gray-500">Created</dt>
+            <dd class="mt-1 text-sm text-gray-900">{{ api_key.created_at|date:"M j, Y g:i A" }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500">Last used</dt>
+            <dd class="mt-1 text-sm text-gray-900">
+                {% if api_key.last_used_at %}{{ api_key.last_used_at|date:"M j, Y g:i A" }}{% else %}Never{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500">Environment</dt>
+            <dd class="mt-1 text-sm text-gray-900">{{ api_key.environment|title }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500">Status</dt>
+            <dd class="mt-1 text-sm text-gray-900">
+                {% if api_key.is_active %}Active{% else %}Revoked {{ api_key.revoked_at|date:"M j, Y" }}{% endif %}
+            </dd>
+        </div>
+    </dl>
+</div>
+
+<!-- Key usage -->
+<div class="mt-6 rounded-lg border border-gray-200 bg-white p-5">
+    <div class="flex items-center justify-between mb-3">
+        <p class="text-sm font-medium text-gray-500">Usage</p>
+        <a href="{% url 'dashboard:key_analytics' %}?keys={{ api_key.id }}"
+           class="text-xs font-medium text-brand-600 hover:text-brand-500">View in analytics</a>
+    </div>
+    <dl class="grid grid-cols-3 gap-4">
+        <div>
+            <dt class="text-xs text-gray-500">Age</dt>
+            <dd class="mt-1 text-lg font-semibold text-gray-900">{{ api_key.created_at|timesince }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs text-gray-500">Last used</dt>
+            <dd class="mt-1 text-lg font-semibold text-gray-900">
+                {% if api_key.last_used_at %}{{ api_key.last_used_at|timesince }} ago{% else %}Never{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs text-gray-500">Status</dt>
+            <dd class="mt-1 text-lg font-semibold {% if api_key.is_active %}text-green-600{% else %}text-red-600{% endif %}">
+                {% if api_key.is_active %}Active{% else %}Revoked{% endif %}
+            </dd>
+        </div>
+    </dl>
+</div>
+
+<!-- Rotation chain -->
+{% if related_keys|length > 1 %}
+<div class="mt-8">
+    <h2 class="text-sm font-semibold text-gray-900">Credential history</h2>
+    <div class="mt-4 space-y-2">
+        {% for rk in related_keys %}
+        <div class="flex items-center justify-between rounded-md border border-gray-200 px-4 py-3
+                    {% if rk.id == api_key.id %}bg-gray-50 ring-1 ring-brand-200{% else %}bg-white{% endif %}">
+            <div class="flex items-center gap-3">
+                <code class="text-sm font-mono text-gray-700">{{ rk.key_prefix }}...</code>
+                {% if rk.is_active %}
+                <span class="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+                {% else %}
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Revoked</span>
+                {% endif %}
+            </div>
+            <span class="text-xs text-gray-400">{{ rk.created_at|date:"M j, Y g:i A" }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Activity timeline -->
+<div class="mt-8">
+    <h2 class="text-sm font-semibold text-gray-900">Activity</h2>
+    {% if audit_trail %}
+    <div class="mt-4 space-y-3">
+        {% for entry in audit_trail %}
+        {% include "dashboard/_audit_timeline_entry.html" with entry=entry %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-gray-500">No activity recorded for this key.</p>
+    {% endif %}
+</div>
+
+<!-- Back link -->
+<div class="mt-8">
+    <a href="{% url 'dashboard:keys' %}" class="text-sm font-medium text-brand-600 hover:text-brand-500">
+        Back to all keys
+    </a>
+</div>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% comment %}
+Reusable data table component.
+
+Context variables:
+  table_id        — unique id for the table
+  columns         — list of column dicts: [{label, key, width}]
+  rows            — list of row dicts matching column keys
+  empty_title     — text when no rows
+  empty_desc      — description when no rows
+  current_page    — current page number
+  has_next        — boolean
+  has_prev        — boolean
+  filter_params   — query string to preserve filters in pagination
+
+Usage: pass rows pre-rendered via template includes or build inline.
+For complex row rendering, use the table shell and render rows manually.
+{% endcomment %}
+
+{% if rows %}
+<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center border-b border-gray-100 bg-gray-50 px-5 py-2">
+        {% for col in columns %}
+        <div class="{{ col.width|default:'flex-1' }}">
+            <span class="text-xs font-medium text-gray-500 uppercase tracking-wider">{{ col.label }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Rows -->
+    <div class="divide-y divide-gray-100">
+        {% block table_rows %}{% endblock %}
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if has_prev or has_next %}
+<nav class="mt-4 flex items-center justify-between">
+    <p class="text-sm text-gray-500">Page {{ current_page }}</p>
+    <div class="flex items-center gap-2">
+        {% if has_prev %}
+        <a href="?page={{ current_page|add:"-1" }}{{ filter_params }}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Previous
+        </a>
+        {% endif %}
+        {% if has_next %}
+        <a href="?page={{ current_page|add:"1" }}{{ filter_params }}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Next
+        </a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}
+
+{% else %}
+{% include "components/_empty_state.html" with empty_title=empty_title empty_description=empty_desc %}
+{% endif %}

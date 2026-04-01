@@ -1,0 +1,409 @@
+"""Dashboard service layer — data queries and key operations.
+
+Key lifecycle operations use pyscoped's object system (dogfooding).
+The scoped object is the authoritative record; the Django ApiKey
+model is a projection for fast authentication lookups.
+"""
+
+import logging
+from uuid import uuid4
+
+from django.utils import timezone
+
+from plane.billing.models import UsageSnapshot
+from plane.core.models import Account, ApiKey, Application, SyncBatchRecord, SyncedAuditEntry
+from plane.dashboard.scoped import scoped_operation
+
+logger = logging.getLogger(__name__)
+
+
+def get_active_env(request):
+    """Read the active environment from the scoped_env cookie."""
+    return request.COOKIES.get("scoped_env", "test")
+
+
+def get_active_app(request):
+    """Read the active application from the scoped_app cookie.
+
+    Falls back to the default application for the current organization.
+    Returns None if no organization is set.
+    """
+    org = getattr(request, "organization", None)
+    if org is None:
+        return None
+    app_id = request.COOKIES.get("scoped_app")
+    if app_id:
+        try:
+            return org.applications.get(id=app_id)
+        except Application.DoesNotExist:
+            pass
+    return org.applications.filter(is_default=True).first()
+
+
+def get_key_summary(application, environment):
+    """Return key counts for the given environment."""
+    qs = application.api_keys.filter(environment=environment)
+    active = qs.filter(is_active=True).count()
+    revoked = qs.filter(is_active=False).count()
+    return {"active": active, "revoked": revoked, "total": active + revoked}
+
+
+def get_keys(application, environment, show_revoked=False, page=1, per_page=25):
+    """Return keys for the given environment, paginated.
+
+    Default filters to active keys only. Pass show_revoked=True
+    to include revoked keys.
+    """
+    from django.core.paginator import Paginator
+
+    qs = application.api_keys.filter(environment=environment)
+    if not show_revoked:
+        qs = qs.filter(is_active=True)
+    qs = qs.order_by("-created_at")
+
+    paginator = Paginator(qs, per_page)
+    return paginator.get_page(page)
+
+
+def get_sync_status(organization):
+    """Return the latest sync info, or None if no syncs received."""
+    account_ids = list(
+        organization.memberships.values_list("account_id", flat=True)
+    )
+    batch = (
+        SyncBatchRecord.objects
+        .filter(account_id__in=account_ids)
+        .order_by("-received_at")
+        .first()
+    )
+    if batch is None:
+        return None
+    total_entries = (
+        SyncedAuditEntry.objects
+        .filter(account_id__in=account_ids)
+        .count()
+    )
+    return {
+        "last_sync": batch.received_at,
+        "total_entries": total_entries,
+        "last_batch_count": batch.entry_count,
+    }
+
+
+def get_usage_summary(organization):
+    """Return the latest usage snapshot, or None."""
+    account_ids = list(
+        organization.memberships.values_list("account_id", flat=True)
+    )
+    return (
+        UsageSnapshot.objects
+        .filter(account_id__in=account_ids)
+        .order_by("-recorded_at")
+        .first()
+    )
+
+
+def get_onboarding_status(organization):
+    """Return onboarding completion status.
+
+    Steps are sticky — once done, they stay done even if the
+    resource is later removed. Onboarding is considered complete
+    once usage data exists (meaning the full loop works).
+    """
+    has_key = ApiKey.objects.filter(
+        application__organization=organization,
+    ).exists()
+    account_ids = list(
+        organization.memberships.values_list("account_id", flat=True)
+    )
+    has_synced = SyncBatchRecord.objects.filter(account_id__in=account_ids).exists()
+    has_usage = UsageSnapshot.objects.filter(account_id__in=account_ids).exists()
+    return {
+        "has_key": has_key,
+        "has_synced": has_synced,
+        "is_complete": has_usage,
+    }
+
+
+def create_api_key(account, application, environment, label="", request=None):
+    """Create a new API key via scoped object + Django model.
+
+    The scoped object records the lifecycle (versioned, audited).
+    The Django model stores the key hash for fast auth lookups.
+    The full key is encrypted at rest via scoped's secrets vault
+    and a short-lived ref token is returned for one-time reveal.
+    """
+    full_key, key_hash = ApiKey.generate_key(environment)
+    key_prefix = full_key[:13]
+    key_id = uuid4().hex
+    scoped_object_id = None
+    secret_ref_token = None
+
+    try:
+        with scoped_operation() as client:
+            obj, _version = client.objects.create(
+                "api_key",
+                data={
+                    "key_id": key_id,
+                    "key_prefix": key_prefix,
+                    "environment": environment,
+                    "label": label,
+                    "is_active": True,
+                },
+            )
+            scoped_object_id = obj.id
+
+            secret, _sv = client.secrets.create(
+                f"api_key:{key_id}",
+                full_key,
+                description=f"API key {key_prefix}... ({environment})",
+            )
+
+            from scoped.identity.context import ScopedContext
+            principal = ScopedContext.current_or_none()
+            if principal:
+                ref = client.secrets.grant_ref(secret.id, principal.principal)
+                secret_ref_token = ref.ref_token
+    except Exception:
+        logger.warning("Scoped object/secret creation failed for key %s", key_id, exc_info=True)
+
+    api_key = ApiKey.objects.create(
+        id=key_id,
+        account=account,
+        application=application,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        environment=environment,
+        label=label,
+        scoped_object_id=scoped_object_id,
+    )
+
+    reveal_value = secret_ref_token or full_key
+    return api_key, reveal_value
+
+
+def revoke_api_key(application, key_id, request=None):
+    """Revoke an API key via scoped update + Django model update."""
+    api_key = ApiKey.objects.get(id=key_id, application=application, is_active=True)
+    now = timezone.now()
+
+    # Update scoped object (dogfooding — creates new version + audit entry)
+    if api_key.scoped_object_id:
+        try:
+            with scoped_operation() as client:
+                client.objects.update(
+                    api_key.scoped_object_id,
+                    data={
+                        "key_id": key_id,
+                        "key_prefix": api_key.key_prefix,
+                        "environment": api_key.environment,
+                        "label": api_key.label,
+                        "is_active": False,
+                        "revoked_at": now.isoformat(),
+                    },
+                )
+        except Exception:
+            logger.warning("Scoped object update failed for key %s", key_id, exc_info=True)
+
+    # Update Django model (projection)
+    api_key.is_active = False
+    api_key.revoked_at = now
+    api_key.save(update_fields=["is_active", "revoked_at"])
+    return api_key
+
+
+def get_key_detail(application, key_id):
+    """Return a single API key for the application, or None."""
+    try:
+        return ApiKey.objects.get(id=key_id, application=application)
+    except ApiKey.DoesNotExist:
+        return None
+
+
+def get_related_keys(api_key):
+    """Return all Django keys sharing the same scoped object (rotation chain)."""
+    if not api_key.scoped_object_id:
+        return [api_key]
+    return list(
+        ApiKey.objects
+        .filter(scoped_object_id=api_key.scoped_object_id)
+        .order_by("-created_at")
+    )
+
+
+def get_key_versions(api_key):
+    """Return version history from scoped, or empty list."""
+    if not api_key.scoped_object_id:
+        return []
+    try:
+        from plane.dashboard.scoped import get_client
+        client = get_client()
+        return client.objects.versions(api_key.scoped_object_id)
+    except Exception:
+        logger.warning("Failed to fetch versions for key %s", api_key.id, exc_info=True)
+        return []
+
+
+def get_key_audit_trail(api_key):
+    """Return the scoped audit trail for a key, most recent first."""
+    if not api_key.scoped_object_id:
+        return []
+    try:
+        from plane.dashboard.scoped import get_client
+        client = get_client()
+        entries = client.audit.for_object(api_key.scoped_object_id)
+        return list(reversed(entries))
+    except Exception:
+        logger.warning("Failed to fetch audit trail for key %s", api_key.id, exc_info=True)
+        return []
+
+
+def get_audit_trail(filters=None, page=1, per_page=25):
+    """Query the scoped audit trail with optional filters.
+
+    Supported filters: action, target_type, actor_id, search, since, until.
+    Returns list of entries, most recent first.
+
+    TODO: sorting and pagination should be native to the scoped
+    audit query API (pyscoped SDK). Currently limited to offset/limit.
+    """
+    from scoped.types import ActionType
+
+    filters = filters or {}
+    try:
+        from plane.dashboard.scoped import get_client
+        client = get_client()
+
+        query_kwargs = {"limit": per_page, "offset": (page - 1) * per_page}
+
+        action_str = filters.get("action")
+        if action_str:
+            try:
+                query_kwargs["action"] = ActionType(action_str)
+            except ValueError:
+                pass
+
+        for key in ("target_type", "actor_id"):
+            if filters.get(key):
+                query_kwargs[key] = filters[key]
+
+        from datetime import datetime as dt
+        for key in ("since", "until"):
+            date_str = filters.get(key)
+            if date_str:
+                try:
+                    query_kwargs[key] = dt.fromisoformat(date_str)
+                except ValueError:
+                    pass
+
+        entries = client.audit.query(**query_kwargs)
+        entries = list(reversed(entries))
+
+        # Client-side text search
+        search = filters.get("search", "").lower()
+        if search:
+            entries = [
+                e for e in entries
+                if search in str(e.action).lower()
+                or search in e.target_type.lower()
+                or search in e.target_id.lower()
+                or search in e.actor_id.lower()
+            ]
+
+        return entries
+    except Exception:
+        logger.warning("Failed to query audit trail", exc_info=True)
+        return []
+
+
+def resolve_key_secret(ref_token):
+    """Resolve a secret ref token to get the plaintext API key.
+
+    Returns the decrypted key string, or the ref_token as-is if
+    it's already a plaintext key (fallback when vault isn't available).
+    """
+    if not ref_token:
+        return None
+
+    # If it looks like a raw key (fallback), return it directly
+    if ref_token.startswith("psc_"):
+        return ref_token
+
+    try:
+        with scoped_operation() as client:
+            return client.secrets.resolve(ref_token)
+    except Exception:
+        logger.warning("Failed to resolve secret ref", exc_info=True)
+        return None
+
+
+def rotate_api_key(application, key_id, request=None):
+    """Rotate a key: new credentials, same scoped object.
+
+    The scoped object gets a new version (rotation event in the
+    audit trail). A new Django ApiKey row is created for the new
+    credentials. The old Django row is revoked. Both rows share
+    the same scoped_object_id — one continuous lifecycle.
+
+    Returns (new_api_key, reveal_value, old_api_key) tuple.
+    """
+    old_key = ApiKey.objects.get(id=key_id, application=application, is_active=True)
+    now = timezone.now()
+
+    # Generate new credentials
+    full_key, key_hash = ApiKey.generate_key(old_key.environment)
+    key_prefix = full_key[:13]
+    new_key_id = uuid4().hex
+    secret_ref_token = None
+
+    # Update scoped object + store new key in vault
+    if old_key.scoped_object_id:
+        try:
+            with scoped_operation() as client:
+                client.objects.update(
+                    old_key.scoped_object_id,
+                    data={
+                        "key_id": new_key_id,
+                        "key_prefix": key_prefix,
+                        "environment": old_key.environment,
+                        "label": old_key.label,
+                        "is_active": True,
+                        "rotated_from": old_key.id,
+                        "rotated_at": now.isoformat(),
+                    },
+                )
+
+                # Store rotated key in vault
+                secret, _sv = client.secrets.create(
+                    f"api_key:{new_key_id}",
+                    full_key,
+                    description=f"Rotated API key {key_prefix}... ({old_key.environment})",
+                )
+
+                from scoped.identity.context import ScopedContext
+                principal = ScopedContext.current_or_none()
+                if principal:
+                    ref = client.secrets.grant_ref(secret.id, principal.principal)
+                    secret_ref_token = ref.ref_token
+        except Exception:
+            logger.warning("Scoped rotation failed for key %s", key_id, exc_info=True)
+
+    # Revoke old Django model
+    old_key.is_active = False
+    old_key.revoked_at = now
+    old_key.save(update_fields=["is_active", "revoked_at"])
+
+    # Create new Django model pointing to same scoped object
+    new_key = ApiKey.objects.create(
+        id=new_key_id,
+        account=old_key.account,
+        application=old_key.application,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        environment=old_key.environment,
+        label=old_key.label,
+        scoped_object_id=old_key.scoped_object_id,
+    )
+
+    reveal_value = secret_ref_token or full_key
+    return new_key, reveal_value, old_key

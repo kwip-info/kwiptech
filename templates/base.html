@@ -1,0 +1,90 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}scoped{% endblock %}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon/favicon.svg' %}">
+    <link rel="icon" type="image/png" sizes="96x96" href="{% static 'images/favicon/favicon-96x96.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon/apple-touch-icon.png' %}">
+    <link rel="manifest" href="{% static 'site.webmanifest' %}">
+    <meta name="theme-color" content="#111827">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ["Inter", "system-ui", "sans-serif"],
+                    },
+                    colors: {
+                        brand: {
+                            50: "#fdf2f8",
+                            100: "#fce7f3",
+                            200: "#fbcfe8",
+                            300: "#f9a8d4",
+                            400: "#f472b6",
+                            500: "#ec4899",
+                            600: "#db2777",
+                            700: "#be185d",
+                            800: "#9d174d",
+                            900: "#831843",
+                            950: "#500724",
+                        },
+                        accent: {
+                            purple: "#a855f7",
+                            blue: "#3b82f6",
+                            red: "#ef4444",
+                            orange: "#f97316",
+                            green: "#22c55e",
+                        },
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="h-full font-sans antialiased bg-white text-gray-900 {% block body_class %}{% endblock %}">
+
+    {% block content %}{% endblock %}
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <!-- ApexCharts -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.0/dist/apexcharts.min.js"></script>
+    <!-- App JS (must load before Alpine so x-data functions are defined) -->
+    <script src="{% static 'js/app.js' %}"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    {% if CLERK_PUBLISHABLE_KEY %}
+    <!-- Clerk.js -->
+    <script
+        async
+        crossorigin="anonymous"
+        data-clerk-publishable-key="{{ CLERK_PUBLISHABLE_KEY }}"
+        src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+        type="text/javascript"
+    ></script>
+    {% endif %}
+
+    {% block extra_js %}{% endblock %}
+
+    {% include "components/_alert.html" %}
+    {% include "components/_confirm_modal.html" %}
+</body>
+</html>

@@ -1,0 +1,19 @@
+{% extends "_layouts/public.html" %}
+
+{% block title %}Documentation - scoped{% endblock %}
+
+{% block page_content %}
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24 text-center">
+    <h1 class="text-3xl font-bold tracking-tight text-gray-900">Documentation</h1>
+    <p class="mx-auto mt-4 max-w-xl text-base text-gray-600">
+        SDK quickstart, API reference, guides, and integration examples.
+        Documentation is being built and will be available here.
+    </p>
+    <div class="mt-10">
+        <a href="{% url 'public:sign_up' %}"
+           class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+            Get started
+        </a>
+    </div>
+</div>
+{% endblock %}

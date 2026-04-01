@@ -1,0 +1,15 @@
+<header class="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-6 shrink-0">
+    <div>
+        {% if page_title %}
+            <h1 class="text-lg font-semibold text-gray-900">{{ page_title }}</h1>
+        {% endif %}
+        {% if page_subtitle %}
+            <p class="text-sm text-gray-500">{{ page_subtitle }}</p>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-4">
+        {% block page_actions %}{% endblock %}
+        {% include "dashboard/_app_selector.html" %}
+        {% include "dashboard/_env_toggle.html" %}
+    </div>
+</header>

@@ -1,0 +1,95 @@
+{% extends "_layouts/public.html" %}
+
+{% block title %}scoped — The trust layer for your application{% endblock %}
+
+{% block page_content %}
+<!-- Hero -->
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24 text-center">
+    <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+        Know what changed, who changed it, and why
+    </h1>
+    <p class="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
+        scoped is the universal trust layer for Python applications.
+        Audit trails, object isolation, versioning, and rollback — built into your stack,
+        not bolted on.
+    </p>
+    <div class="mt-10 flex items-center justify-center gap-4">
+        <a href="{% url 'public:sign_up' %}"
+           class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+            Get started
+        </a>
+        <a href="{% url 'public:security' %}"
+           class="rounded-md px-5 py-2.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            How it works
+        </a>
+    </div>
+</div>
+
+<!-- Features -->
+<div class="border-t border-gray-200 bg-gray-50">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
+        <div class="text-center">
+            <h2 class="text-2xl font-bold text-gray-900">Everything your application needs to be trustworthy</h2>
+            <p class="mt-4 text-base text-gray-600">
+                Clerk handles who your users are. Stripe handles their money.
+                scoped handles what they can see, what changed, and who did it.
+            </p>
+        </div>
+        <div class="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {% include "public/_feature_card.html" with title="Tamper-evident audit trails" description="Every operation is recorded in a hash-chained, append-only audit log. Nothing is truly deleted. Every action has a trace." %}
+            {% include "public/_feature_card.html" with title="Object isolation and versioning" description="Every data object is versioned, owned, and isolated by default. Sharing is explicit. Deny always wins." %}
+            {% include "public/_feature_card.html" with title="Your data stays in your database" description="The SDK runs in your infrastructure against your database. We never see your raw data. Only structural metadata is synced." %}
+            {% include "public/_feature_card.html" with title="Point-in-time rollback" description="Reconstruct the state of any object at any point in time. Roll back any action. Nothing is irreversible." %}
+            {% include "public/_feature_card.html" with title="Usage-based pricing" description="Pay for what you use. Active objects, principals, and audit retention. Your SDK never stops working due to billing." %}
+            {% include "public/_feature_card.html" with title="Works with your stack" description="pip install pyscoped. Django, FastAPI, and Flask adapters included. PostgreSQL and SQLite backends. No infrastructure to manage." %}
+        </div>
+    </div>
+</div>
+
+<!-- Architecture -->
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
+    <div class="text-center">
+        <h2 class="text-2xl font-bold text-gray-900">How scoped works</h2>
+    </div>
+    <div class="mt-16 grid grid-cols-1 gap-12 lg:grid-cols-3">
+        <div>
+            <p class="text-sm font-semibold text-brand-600">01</p>
+            <h3 class="mt-2 text-lg font-semibold text-gray-900">SDK in your infrastructure</h3>
+            <p class="mt-2 text-sm text-gray-600">
+                The scoped SDK runs in your application process. All CRUD, versioning,
+                audit, and access control execute locally against your database.
+            </p>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-brand-600">02</p>
+            <h3 class="mt-2 text-lg font-semibold text-gray-900">Sync agent pushes metadata</h3>
+            <p class="mt-2 text-sm text-gray-600">
+                A lightweight daemon syncs structural metadata to the management plane.
+                Who did what, when, to what type of thing. Never the data itself.
+            </p>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-brand-600">03</p>
+            <h3 class="mt-2 text-lg font-semibold text-gray-900">Dashboard gives you visibility</h3>
+            <p class="mt-2 text-sm text-gray-600">
+                The management plane provides audit trail search, compliance reports,
+                usage analytics, and team management. A read-only view into your operations.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom CTA -->
+<div class="border-t border-gray-200 bg-gray-50">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <h2 class="text-2xl font-bold text-gray-900">Start building with trust built in</h2>
+        <p class="mt-4 text-base text-gray-600">Free to start. Usage-based pricing as you grow.</p>
+        <div class="mt-8">
+            <a href="{% url 'public:sign_up' %}"
+               class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+                Get started
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

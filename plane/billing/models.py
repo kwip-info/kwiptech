@@ -10,7 +10,7 @@ from django.utils import timezone
 
 
 class Plan(models.Model):
-    """A billing plan tier."""
+    """A billing plan tier with Stripe price mappings."""
 
     id = models.CharField(max_length=32, primary_key=True)
     name = models.CharField(max_length=64)
@@ -19,6 +19,17 @@ class Plan(models.Model):
     audit_retention_days = models.IntegerField()
     min_sync_interval_seconds = models.IntegerField()
     price_cents_monthly = models.IntegerField(default=0)
+
+    # Stripe Price IDs (populated after Stripe Products are created)
+    stripe_base_price_id = models.CharField(max_length=255, blank=True, default="")
+    stripe_object_price_id = models.CharField(max_length=255, blank=True, default="")
+    stripe_principal_price_id = models.CharField(max_length=255, blank=True, default="")
+
+    # Included allowances (overage above these is metered)
+    included_objects = models.IntegerField(default=0)
+    included_principals = models.IntegerField(default=0)
+    overage_per_object_cents = models.IntegerField(default=0)
+    overage_per_principal_cents = models.IntegerField(default=0)
 
     class Meta:
         db_table = "plans"
@@ -36,6 +47,20 @@ class UsageSnapshot(models.Model):
     id = models.BigAutoField(primary_key=True)
     account = models.ForeignKey(
         "core.Account", on_delete=models.CASCADE, related_name="usage_snapshots"
+    )
+    organization = models.ForeignKey(
+        "core.Organization",
+        on_delete=models.CASCADE,
+        related_name="usage_snapshots",
+        null=True,
+        blank=True,
+    )
+    application = models.ForeignKey(
+        "core.Application",
+        on_delete=models.CASCADE,
+        related_name="usage_snapshots",
+        null=True,
+        blank=True,
     )
     active_objects = models.IntegerField()
     active_principals = models.IntegerField()
@@ -59,6 +84,13 @@ class BillingPeriod(models.Model):
     id = models.BigAutoField(primary_key=True)
     account = models.ForeignKey(
         "core.Account", on_delete=models.CASCADE, related_name="billing_periods"
+    )
+    organization = models.ForeignKey(
+        "core.Organization",
+        on_delete=models.CASCADE,
+        related_name="billing_periods",
+        null=True,
+        blank=True,
     )
     period_start = models.DateTimeField()
     period_end = models.DateTimeField()

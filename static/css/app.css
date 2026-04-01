@@ -1,0 +1,30 @@
+/*
+ * App-level CSS for pyscoped management plane.
+ * Prefer Tailwind utility classes in templates. Only add rules
+ * here when utilities are insufficient.
+ */
+
+/* HTMX swap transitions */
+.htmx-settling {
+    opacity: 0;
+}
+
+.htmx-swapping {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
+}
+
+.htmx-added {
+    opacity: 0;
+    transition: opacity 300ms ease-in;
+}
+
+/* Hide scrollbar on sidebar nav while keeping scroll functionality */
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}

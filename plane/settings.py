@@ -1,22 +1,24 @@
 """Django settings for pyscoped management plane.
 
 Reads configuration from environment variables for 12-factor compliance.
-Docker Compose sets these via .env or environment directives.
+Docker Compose sets these via .env; Heroku sets them via config vars.
 """
 
 import os
 from pathlib import Path
 
+import dj_database_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
+    "SECRET_KEY",
     "insecure-dev-key-change-in-production",
 )
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() == "true"
+DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
 
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 # ---------------------------------------------------------------------------
 # Apps
@@ -36,14 +38,19 @@ INSTALLED_APPS = [
     "scoped.contrib.django",
     "plane.core",
     "plane.billing",
+    "plane.dashboard",
+    "plane.public",
+    "plane.webhooks",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "plane.auth.middleware.ClerkAuthMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # pyscoped context injection — attributes every request to a principal
@@ -55,7 +62,7 @@ ROOT_URLCONF = "plane.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -63,6 +70,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "plane.dashboard.context_processors.clerk_settings",
             ],
         },
     },
@@ -71,18 +79,22 @@ TEMPLATES = [
 WSGI_APPLICATION = "plane.wsgi.application"
 
 # ---------------------------------------------------------------------------
-# Database — Postgres via Docker Compose
+# Database
 # ---------------------------------------------------------------------------
 
+# Heroku sets DATABASE_URL automatically. Docker Compose sets it via .env.
+# Fallback to individual POSTGRES_* vars for backwards compatibility.
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "pyscoped_plane"),
-        "USER": os.environ.get("POSTGRES_USER", "pyscoped"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "pyscoped"),
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-    }
+    "default": dj_database_url.config(
+        default="postgres://{user}:{password}@{host}:{port}/{name}".format(
+            user=os.environ.get("POSTGRES_USER", "pyscoped"),
+            password=os.environ.get("POSTGRES_PASSWORD", "pyscoped"),
+            host=os.environ.get("POSTGRES_HOST", "localhost"),
+            port=os.environ.get("POSTGRES_PORT", "5432"),
+            name=os.environ.get("POSTGRES_DB", "pyscoped_plane"),
+        ),
+        conn_max_age=600,
+    )
 }
 
 # ---------------------------------------------------------------------------
@@ -92,6 +104,21 @@ DATABASES = {
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
 ]
+
+# ---------------------------------------------------------------------------
+# Clerk — frontend authentication for dashboard
+# ---------------------------------------------------------------------------
+
+CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY", "")
+CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY", "")
+CLERK_JWKS_URL = os.environ.get("CLERK_JWKS_URL", "")
+CLERK_JWKS_CACHE_TTL = int(os.environ.get("CLERK_JWKS_CACHE_TTL", "3600"))
+CLERK_WEBHOOK_SECRET = os.environ.get("CLERK_WEBHOOK_SECRET", "")
+
+# Stripe
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 # ---------------------------------------------------------------------------
 # DRF
@@ -125,14 +152,54 @@ REST_FRAMEWORK = {
 SCOPED_PRINCIPAL_RESOLVER = "plane.api.principal_resolver.resolve_principal"
 
 # Exempt health check and provisioning from principal resolution.
-SCOPED_EXEMPT_PATHS = ["/v1/ping", "/v1/provision"]
+SCOPED_EXEMPT_PATHS = [
+    "/v1/ping", "/v1/provision", "/admin/",
+    "/pricing", "/status", "/security",
+    "/terms", "/privacy", "/cookies", "/docs",
+    "/sign-in", "/sign-up", "/static/",
+    "/webhooks/",
+]
 
 # ---------------------------------------------------------------------------
-# Static / i18n
+# Static files
+# ---------------------------------------------------------------------------
+
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Security — production hardening (disabled when DEBUG=True)
+# ---------------------------------------------------------------------------
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+# ---------------------------------------------------------------------------
+# Email
+# ---------------------------------------------------------------------------
+
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@kwip.info")
+
+# ---------------------------------------------------------------------------
+# i18n
 # ---------------------------------------------------------------------------
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_TZ = True
-STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

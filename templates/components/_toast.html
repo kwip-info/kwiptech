@@ -1,0 +1,12 @@
+{% if messages %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Wait a tick for Alpine to initialize the alert manager
+        setTimeout(function () {
+            {% for message in messages %}
+            showAlert("{{ message|escapejs }}", "{{ message.tags|default:'info' }}");
+            {% endfor %}
+        }, 100);
+    });
+</script>
+{% endif %}

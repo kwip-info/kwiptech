@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-full flex flex-col">
+    <!-- Public navbar -->
+    <nav class="border-b border-gray-200 bg-white">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-16 justify-between items-center">
+                <a href="/" class="text-lg font-semibold text-gray-900">scoped <span class="text-xs font-normal text-gray-400">by kwip</span></a>
+                <div class="flex items-center gap-6">
+                    <a href="{% url 'public:pricing' %}" class="text-sm text-gray-600 hover:text-gray-900">Pricing</a>
+                    <a href="{% url 'public:docs' %}" class="text-sm text-gray-600 hover:text-gray-900">Docs</a>
+                    <a href="{% url 'public:security' %}" class="text-sm text-gray-600 hover:text-gray-900">Security</a>
+                    <a href="{% url 'public:status' %}" class="text-sm text-gray-600 hover:text-gray-900">Status</a>
+                    {% if clerk_user %}
+                    <a href="{% url 'dashboard:index' %}" class="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-500">Dashboard</a>
+                    {% else %}
+                    <a href="{% url 'public:sign_in' %}" class="text-sm text-gray-600 hover:text-gray-900">Sign in</a>
+                    <a href="{% url 'public:sign_up' %}" class="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-500">Sign up</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <main class="flex-1">
+        {% include "components/_toast.html" %}
+        {% block page_content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    {% include "components/_footer.html" %}
+</div>
+{% endblock %}

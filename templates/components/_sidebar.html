@@ -1,0 +1,104 @@
+{% load dashboard_tags %}
+<aside class="w-64 border-r border-gray-200 bg-gray-50 flex flex-col shrink-0">
+    <!-- Logo -->
+    <div class="h-16 flex items-center px-6 border-b border-gray-200">
+        <a href="{% url 'dashboard:index' %}" class="text-lg font-semibold text-gray-900">
+            scoped
+        </a>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 overflow-y-auto hide-scrollbar py-4 px-3">
+        {% if organization %}
+        <!-- Organization -->
+        <div class="mb-6">
+            <p class="px-3 mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {{ organization.name }}
+            </p>
+            {% has_perm "members.view" as can_view_members %}
+            {% if can_view_members %}
+            <a href="{% url 'dashboard:members' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/members' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Members
+            </a>
+            {% endif %}
+            {% has_perm "apps.view" as can_view_apps %}
+            {% if can_view_apps %}
+            <a href="{% url 'dashboard:applications' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/apps' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Applications
+            </a>
+            {% endif %}
+            {% has_perm "roles.view" as can_view_roles %}
+            {% if can_view_roles %}
+            <a href="{% url 'dashboard:roles' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/roles' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Roles
+            </a>
+            {% endif %}
+            {% has_perm "billing.view" as can_view_billing %}
+            {% if can_view_billing %}
+            <a href="{% url 'dashboard:billing' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/billing' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Billing
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- General -->
+        <div class="mb-6">
+            <p class="px-3 mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                General
+            </p>
+            <a href="{% url 'dashboard:index' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if request.path == '/dashboard/' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Dashboard
+            </a>
+            <a href="{% url 'dashboard:keys' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/keys' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                API Keys
+            </a>
+            <a href="{% url 'dashboard:sync' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/sync' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Sync Status
+            </a>
+            {% has_perm "audit.view" as can_view_audit %}
+            {% if can_view_audit %}
+            <a href="{% url 'dashboard:audit' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/audit' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Audit Trail
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Setup -->
+        <div class="mb-6">
+            <p class="px-3 mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Setup
+            </p>
+            <a href="{% url 'dashboard:getting_started' %}"
+               class="flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
+                      {% if '/dashboard/getting-started' in request.path %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:bg-white hover:text-gray-900{% endif %}">
+                Getting Started
+            </a>
+        </div>
+    </nav>
+
+    {% if clerk_user %}
+    <div class="border-t border-gray-200 px-4 py-3">
+        <div class="flex items-center gap-3">
+            <div id="clerk-user-button"></div>
+            <span class="text-sm text-gray-500">Account</span>
+        </div>
+    </div>
+    {% endif %}
+</aside>

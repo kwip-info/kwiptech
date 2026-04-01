@@ -1,0 +1,76 @@
+{% extends "_layouts/dashboard.html" %}
+{% load dashboard_tags %}
+
+{% block title %}Applications - scoped{% endblock %}
+
+{% block page_content %}
+{% has_perm "apps.create" as can_create %}
+
+{% if can_create %}
+<div class="mb-6 flex justify-end">
+    <a href="{% url 'dashboard:app_create' %}"
+       class="rounded-md bg-fuchsia-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-fuchsia-500">
+        New Application
+    </a>
+</div>
+{% endif %}
+
+<div class="space-y-3">
+    {% for app in apps %}
+    <div class="rounded-lg border border-gray-200 bg-white p-4
+                {% if active_app and active_app.id == app.id %}ring-2 ring-fuchsia-500{% endif %}">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <p class="text-sm font-medium text-gray-900">{{ app.name }}</p>
+                        {% if app.is_default %}
+                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">
+                            Default
+                        </span>
+                        {% endif %}
+                        {% if active_app and active_app.id == app.id %}
+                        <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-fuchsia-50 text-fuchsia-700">
+                            Active
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-xs text-gray-500 mt-0.5">{{ app.slug }}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                {% if not active_app or active_app.id != app.id %}
+                <form method="post" action="{% url 'dashboard:set_app' %}" class="contents">
+                    {% csrf_token %}
+                    <input type="hidden" name="application" value="{{ app.id }}">
+                    <button type="submit"
+                            class="text-sm font-medium text-fuchsia-600 hover:text-fuchsia-500">
+                        Switch to
+                    </button>
+                </form>
+                {% endif %}
+                {% has_perm "apps.manage" as can_manage %}
+                {% if can_manage %}
+                <a href="{% url 'dashboard:app_edit' app_id=app.id %}"
+                   class="text-sm font-medium text-gray-600 hover:text-gray-900">
+                    Edit
+                </a>
+                {% if not app.is_default %}
+                <form method="post" action="{% url 'dashboard:app_delete' app_id=app.id %}"
+                      x-data @submit.prevent="confirmAction({ title: 'Delete application?', message: 'All data associated with {{ app.name }} will be removed. This cannot be undone.', action: 'Delete', destructive: true, form: $el })">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="text-sm font-medium text-red-600 hover:text-red-500">
+                        Delete
+                    </button>
+                </form>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    {% include "components/_empty_state.html" with empty_title="No applications" empty_description="Create your first application to get started." %}
+    {% endfor %}
+</div>
+{% endblock %}

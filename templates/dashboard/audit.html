@@ -1,0 +1,125 @@
+{% extends "_layouts/dashboard.html" %}
+
+{% block title %}Audit Trail - scoped{% endblock %}
+
+{% block page_content %}
+<!-- Search and filters -->
+<div class="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+    <form method="get" action="{% url 'dashboard:audit' %}" class="flex flex-wrap items-end gap-4">
+        <div class="flex-1 min-w-[200px]">
+            <label for="filter-search" class="block text-xs font-medium text-gray-500">Search</label>
+            <input type="text" name="search" id="filter-search"
+                   value="{{ filters.search|default:'' }}"
+                   class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"
+                   placeholder="Search actions, targets, actors...">
+        </div>
+        <div class="min-w-[130px]">
+            <label for="filter-action" class="block text-xs font-medium text-gray-500">Action</label>
+            <select name="action" id="filter-action"
+                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                <option value="">All</option>
+                {% for val, label in action_choices %}
+                <option value="{{ val }}" {% if filters.action == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="min-w-[130px]">
+            <label for="filter-target" class="block text-xs font-medium text-gray-500">Target</label>
+            <select name="target_type" id="filter-target"
+                    class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                <option value="">All</option>
+                {% for val, label in target_choices %}
+                <option value="{{ val }}" {% if filters.target_type == val %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="min-w-[140px]">
+            <label for="filter-since" class="block text-xs font-medium text-gray-500">Since</label>
+            <input type="date" name="since" id="filter-since"
+                   value="{{ filters.since|default:'' }}"
+                   class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+        </div>
+        <div class="min-w-[140px]">
+            <label for="filter-until" class="block text-xs font-medium text-gray-500">Until</label>
+            <input type="date" name="until" id="filter-until"
+                   value="{{ filters.until|default:'' }}"
+                   class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+        </div>
+        <div class="flex items-center gap-2">
+            <button type="submit"
+                    class="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-brand-500">
+                Filter
+            </button>
+            {% if filters %}
+            <a href="{% url 'dashboard:audit' %}" class="text-sm text-gray-500 hover:text-gray-700">Clear</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<!-- Table -->
+{% if entries %}
+<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+    <table class="w-full">
+        <thead class="hidden sm:table-header-group">
+            <tr class="border-b border-gray-100 bg-gray-50">
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Action</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Actor</th>
+                <th class="px-5 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Time</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for entry in entries %}
+            <tr>
+                <td class="px-5 py-3 whitespace-nowrap">
+                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
+                                 {% if 'create' in entry.action|stringformat:'s' %}bg-green-50 text-green-700
+                                 {% elif 'update' in entry.action|stringformat:'s' or 'rotate' in entry.action|stringformat:'s' %}bg-blue-50 text-blue-700
+                                 {% elif 'delete' in entry.action|stringformat:'s' or 'revoke' in entry.action|stringformat:'s' %}bg-red-50 text-red-700
+                                 {% elif 'grant' in entry.action|stringformat:'s' %}bg-purple-50 text-purple-700
+                                 {% else %}bg-gray-50 text-gray-700{% endif %}">
+                        {{ entry.action }}
+                    </span>
+                </td>
+                <td class="px-5 py-3 min-w-0">
+                    <span class="text-sm text-gray-900">{{ entry.target_type }}</span>
+                    <code class="ml-2 text-xs text-gray-400">{{ entry.target_id|truncatechars:20 }}</code>
+                </td>
+                <td class="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">
+                    {% if entry.actor_id == 'system' %}System{% else %}{{ entry.actor_id|truncatechars:16 }}{% endif %}
+                </td>
+                <td class="px-5 py-3 text-xs text-gray-500 text-right whitespace-nowrap">
+                    {{ entry.timestamp|date:"M j, Y g:i:s A" }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if has_prev or has_next %}
+<nav class="mt-4 flex items-center justify-between">
+    <p class="text-sm text-gray-500">Page {{ current_page }}</p>
+    <div class="flex items-center gap-2">
+        {% if has_prev %}
+        <a href="?page={{ current_page|add:"-1" }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Previous
+        </a>
+        {% endif %}
+        {% if has_next %}
+        <a href="?page={{ current_page|add:"1" }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
+           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Next
+        </a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}
+
+{% else %}
+{% include "components/_empty_state.html" with empty_title="No audit entries" empty_description="Operations will appear here as you use the platform." %}
+{% endif %}
+{% endblock %}
