@@ -64,59 +64,45 @@ application = Application.objects.create(
 
 ---
 
-## scoped_sync.py
+## Model-Level Scoped Sync
 
-The `core/scoped_sync.py` module contains all bridge functions between Django models and pyscoped. Each function follows the pattern: perform the pyscoped operation, then update the Django model.
+Each model that integrates with pyscoped has sync methods directly on the model class. This replaces the previous `scoped_sync.py` module (removed in v0.7.1).
 
-### Functions
+### Sync Methods
 
-| Function                         | Description                                                   |
-|----------------------------------|---------------------------------------------------------------|
-| `create_org_in_scoped(org)`      | Creates a pyscoped principal and scope for a new organization.|
-| `update_org_in_scoped(org)`      | Updates the pyscoped principal/scope when an org is renamed.  |
-| `create_app_in_scoped(app)`      | Creates a pyscoped scope under the org for an application.    |
-| `update_app_in_scoped(app)`      | Updates the pyscoped scope when an app is renamed.            |
-| `delete_app_in_scoped(app)`      | Archives the pyscoped scope (soft delete).                    |
-| `create_membership_in_scoped(m)` | Creates a pyscoped membership linking principal to scope.     |
-| `update_membership_in_scoped(m)` | Updates membership rules when a member's role changes.        |
-| `remove_membership_in_scoped(m)` | Revokes the pyscoped membership.                              |
-| `create_key_in_scoped(key)`      | Registers the API key as a pyscoped object in the secrets vault. |
-| `revoke_key_in_scoped(key)`      | Marks the pyscoped object as revoked.                         |
-| `update_role_rules_in_scoped(r)` | Syncs permission changes to pyscoped rule definitions.        |
+| Model | Method | Description |
+|---|---|---|
+| `Organization` | `sync_to_scoped()` | Creates/updates pyscoped Principal (kind="org") + top-level Scope |
+| `Organization` | `archive_in_scoped()` | Archives the org's pyscoped Scope |
+| `Application` | `sync_to_scoped()` | Creates/updates a child Scope under the org |
+| `Application` | `archive_in_scoped()` | Archives the app's pyscoped Scope |
+| `Membership` | `sync_to_scoped()` | Adds member to org scope via pyscoped ScopeMembership |
+| `Membership` | `bulk_sync_to_scoped()` | Bulk-adds multiple members |
+| `Membership` | `revoke_in_scoped()` | Revokes member from org scope |
+| `Role` | `sync_rules_to_scoped()` | Archives old rules + creates ACCESS rules per permission |
+| `Role` | `archive_rules_in_scoped()` | Archives all pyscoped rules for the role |
 
 ### Graceful Degradation
 
-All scoped_sync functions are wrapped in try/except blocks. If pyscoped is unavailable or throws an error, the platform logs a structured error and continues. The Django model is still updated, and the pyscoped sync is retried on the next relevant operation.
+All sync methods are wrapped in try/except blocks. If pyscoped is unavailable, the platform logs a structured warning and continues. The Django model is always persisted first — pyscoped sync is additive.
 
 ```python
-def create_org_in_scoped(organization):
-    """Create a pyscoped principal and scope for the organization."""
-    try:
-        principal = scoped_client.principals.create(
-            name=organization.name,
-            principal_type="organization",
-        )
-        scope = scoped_client.scopes.create(
-            name=organization.slug,
-        )
-        organization.scoped_principal_id = principal.id
-        organization.scoped_scope_id = scope.id
-        organization.save(update_fields=["scoped_principal_id", "scoped_scope_id"])
+# Call sites are explicit — sync happens after Django persist
+org = Organization.objects.create(id=uuid4().hex, name=name, slug=slug, owner=owner)
+org.sync_to_scoped()  # Graceful — logs on failure, never blocks
 
-        logger.info(
-            "scoped_sync.org_created",
-            organization_id=str(organization.id),
-            scoped_principal_id=principal.id,
-            scoped_scope_id=scope.id,
-        )
-    except Exception:
-        logger.exception(
-            "scoped_sync.org_create_failed",
-            organization_id=str(organization.id),
-        )
+# Updates
+org.name = new_name
+org.save(update_fields=["name"])
+org.sync_to_scoped(updated_by=actor_id)
+
+# Deletes
+org.archive_in_scoped(archived_by=actor_id)
+org.status = "archived"
+org.save(update_fields=["status"])
 ```
 
-This pattern ensures that a pyscoped outage does not take down the platform. The dashboard remains functional with degraded authorization capabilities.
+This ensures that a pyscoped outage does not take down the platform. The dashboard remains functional with degraded authorization capabilities.
 
 ---
 
@@ -367,32 +353,10 @@ The structured log entries are captured by pyscoped's audit chain and synced bac
 Dashboard permission checks use pyscoped rules. When a role's permissions are modified in the dashboard, the corresponding pyscoped rules are updated via `update_role_rules_in_scoped`:
 
 ```python
-def update_role_rules_in_scoped(role):
-    """Sync Django Role permissions to pyscoped rules."""
-    try:
-        rule_ids = []
-        for permission in role.permissions.all():
-            rule = scoped_client.rules.upsert(
-                name=f"{role.organization.slug}:{role.name}:{permission.name}",
-                principal_id=role.organization.scoped_principal_id,
-                action=permission.name,
-                effect="allow",
-            )
-            rule_ids.append(rule.id)
-
-        role.scoped_rule_ids = rule_ids
-        role.save(update_fields=["scoped_rule_ids"])
-
-        logger.info(
-            "scoped_sync.role_rules_updated",
-            role_id=str(role.id),
-            rule_count=len(rule_ids),
-        )
-    except Exception:
-        logger.exception(
-            "scoped_sync.role_rules_update_failed",
-            role_id=str(role.id),
-        )
+# Role permissions synced via model method
+role.sync_rules_to_scoped(created_by=actor_id)
+# Archives old rules, creates fresh ACCESS rules per permission,
+# bound to the org's pyscoped scope.
 ```
 
 ### Secrets Vault

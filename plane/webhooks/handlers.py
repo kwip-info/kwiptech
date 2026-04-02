@@ -59,10 +59,9 @@ def handle_organization_created(data):
         is_default=True,
     )
 
-    # Create scoped principal + scope (graceful degradation)
-    from plane.core.scoped_sync import create_app_in_scoped, create_org_in_scoped
-    create_org_in_scoped(org)
-    create_app_in_scoped(app)
+    # Sync to pyscoped (graceful degradation)
+    org.sync_to_scoped()
+    app.sync_to_scoped()
 
     # Create Stripe Customer (graceful degradation)
     from plane.billing.stripe_client import create_customer
@@ -88,8 +87,7 @@ def handle_organization_updated(data):
         org.slug = slugify(slug)
     org.save(update_fields=["name", "slug"])
 
-    from plane.core.scoped_sync import update_org_in_scoped
-    update_org_in_scoped(org)
+    org.sync_to_scoped()
 
 
 def handle_organization_deleted(data):
@@ -101,8 +99,7 @@ def handle_organization_deleted(data):
         logger.warning("Organization %s not found for deletion", clerk_org_id)
         return
 
-    from plane.core.scoped_sync import archive_org_in_scoped
-    archive_org_in_scoped(org)
+    org.archive_in_scoped()
 
     org.status = "archived"
     org.save(update_fields=["status"])
@@ -150,8 +147,7 @@ def handle_membership_created(data):
         clerk_membership_id=clerk_membership_id,
     )
 
-    from plane.core.scoped_sync import create_membership_in_scoped
-    create_membership_in_scoped(membership)
+    membership.sync_to_scoped()
 
     logger.info("Created membership for %s in %s as %s", account.id, org.id, role.name)
 
@@ -188,9 +184,7 @@ def handle_membership_deleted(data):
     except Membership.DoesNotExist:
         return
 
-    from plane.core.scoped_sync import revoke_membership_in_scoped
-    revoke_membership_in_scoped(membership)
-
+    membership.revoke_in_scoped()
     membership.delete()
     logger.info("Deleted membership %s", clerk_membership_id)
 

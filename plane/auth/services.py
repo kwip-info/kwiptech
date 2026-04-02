@@ -96,15 +96,10 @@ def ensure_personal_organization(account):
         role=owner_role,
     )
 
-    # Create scoped objects (graceful degradation)
-    from plane.core.scoped_sync import (
-        create_app_in_scoped,
-        create_membership_in_scoped,
-        create_org_in_scoped,
-    )
-    create_org_in_scoped(org)
-    create_app_in_scoped(app)
-    create_membership_in_scoped(membership)
+    # Sync to pyscoped (graceful degradation)
+    org.sync_to_scoped()
+    app.sync_to_scoped()
+    membership.sync_to_scoped()
 
     # Create Stripe Customer (graceful degradation)
     from plane.billing.stripe_client import create_customer

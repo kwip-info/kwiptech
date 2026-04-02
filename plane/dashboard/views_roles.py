@@ -7,11 +7,6 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from plane.core.models import Permission, Role, RolePermission
-from plane.core.scoped_sync import (
-    archive_role_rules_in_scoped,
-    create_role_rules_in_scoped,
-    update_role_rules_in_scoped,
-)
 from plane.dashboard.views import require_permission
 
 
@@ -67,15 +62,15 @@ def role_editor(request, role_id=None):
             })
 
         selected_ids = set(request.POST.getlist("permissions"))
-        is_new = role is None
         actor = _actor(request)
 
-        if is_new:
+        if role is None:
             role = Role.objects.create(
                 id=uuid4().hex,
                 organization=org,
                 name=name,
             )
+
         else:
             role.name = name
             role.save(update_fields=["name"])
@@ -86,10 +81,7 @@ def role_editor(request, role_id=None):
             RolePermission(role=role, permission=p) for p in perms
         ])
 
-        if is_new:
-            create_role_rules_in_scoped(role)
-        else:
-            update_role_rules_in_scoped(role, updated_by=actor)
+        role.sync_rules_to_scoped(created_by=actor)
 
         messages.success(request, f"Role \"{role.name}\" saved.")
         return redirect("dashboard:roles")
@@ -126,7 +118,7 @@ def role_delete(request, role_id):
 
     if request.method == "POST":
         name = role.name
-        archive_role_rules_in_scoped(role, archived_by=_actor(request))
+        role.archive_rules_in_scoped(archived_by=_actor(request))
         role.delete()
         messages.success(request, f"Role \"{name}\" deleted.")
 

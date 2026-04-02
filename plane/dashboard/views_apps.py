@@ -7,11 +7,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
 
 from plane.core.models import Application
-from plane.core.scoped_sync import (
-    archive_app_in_scoped,
-    create_app_in_scoped,
-    update_app_in_scoped,
-)
 from plane.dashboard import services
 from plane.dashboard.views import require_permission
 
@@ -57,7 +52,7 @@ def create_application(request):
             slug=slug,
         )
 
-        create_app_in_scoped(app)
+        app.sync_to_scoped()
 
         messages.success(request, f"Application \"{app.name}\" created.")
         response = redirect("dashboard:applications")
@@ -86,7 +81,7 @@ def edit_application(request, app_id):
         else:
             app.name = name
             app.save(update_fields=["name"])
-            update_app_in_scoped(app, updated_by=_actor(request))
+            app.sync_to_scoped(updated_by=_actor(request))
             messages.success(request, "Application updated.")
         return redirect("dashboard:applications")
 
@@ -117,7 +112,7 @@ def delete_application(request, app_id):
 
     if request.method == "POST":
         name = app.name
-        archive_app_in_scoped(app, archived_by=_actor(request))
+        app.archive_in_scoped(archived_by=_actor(request))
         app.delete()
         messages.success(request, f"Application \"{name}\" deleted.")
         response = redirect("dashboard:applications")
