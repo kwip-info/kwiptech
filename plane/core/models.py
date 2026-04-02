@@ -469,6 +469,7 @@ class Role(models.Model):
             return
 
         try:
+            from scoped.rules.conditions import AccessCondition
             from scoped.rules.models import BindingTargetType, RuleEffect, RuleType
             services = _get_services(client)
 
@@ -486,7 +487,10 @@ class Role(models.Model):
                     name=f"{org.slug}:{self.name}:{perm.id}",
                     rule_type=RuleType.ACCESS,
                     effect=RuleEffect.ALLOW,
-                    conditions={"action": perm.id, "role": self.name.lower()},
+                    conditions=AccessCondition(
+                        action=perm.id,
+                        role=self.name.lower(),
+                    ),
                     priority=100,
                     created_by=org.scoped_principal_id or "system",
                 )
@@ -547,12 +551,14 @@ class RolePermission(models.Model):
 # Membership — syncs as a pyscoped ScopeMembership
 # ---------------------------------------------------------------------------
 
-# Maps platform role names to pyscoped ScopeRole values
+# Maps platform role names to pyscoped ScopeRole enum values
+from scoped.tenancy.models import ScopeRole
+
 _ROLE_MAP = {
-    "Owner": "owner",
-    "Admin": "admin",
-    "Developer": "editor",
-    "Viewer": "viewer",
+    "Owner": ScopeRole.OWNER,
+    "Admin": ScopeRole.ADMIN,
+    "Developer": ScopeRole.EDITOR,
+    "Viewer": ScopeRole.VIEWER,
 }
 
 
@@ -606,7 +612,6 @@ class Membership(models.Model):
             return
 
         try:
-            from scoped.tenancy.models import ScopeRole
             services = _get_services(client)
 
             account_principal = services["principals"].find_principal(
@@ -615,13 +620,7 @@ class Membership(models.Model):
             if account_principal is None:
                 return
 
-            role_map = {
-                "Owner": ScopeRole.OWNER,
-                "Admin": ScopeRole.ADMIN,
-                "Developer": ScopeRole.EDITOR,
-                "Viewer": ScopeRole.VIEWER,
-            }
-            scoped_role = role_map.get(self.role.name, ScopeRole.VIEWER)
+            scoped_role = _ROLE_MAP.get(self.role.name, ScopeRole.VIEWER)
 
             sm = services["scopes"].add_member(
                 org.scoped_scope_id,
@@ -658,7 +657,7 @@ class Membership(models.Model):
                     continue
                 members.append({
                     "principal_id": principal.id,
-                    "role": _ROLE_MAP.get(m.role.name, "viewer"),
+                    "role": _ROLE_MAP.get(m.role.name, ScopeRole.VIEWER),
                 })
 
             if members:

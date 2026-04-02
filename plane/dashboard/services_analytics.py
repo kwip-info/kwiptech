@@ -55,8 +55,7 @@ def get_audit_count_today(organization):
         client = get_client()
         services = build_services(client._backend)
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        entries = services["audit_query"].query(since=today_start, limit=1000)
-        return len(entries)
+        return services["audit_query"].count(since=today_start)
     except Exception:
         return 0
 
