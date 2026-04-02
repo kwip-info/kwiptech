@@ -31,7 +31,7 @@ All configuration is driven by environment variables. Group them by category whe
 |------------------------|----------|------------------------|----------------------------------------------------------------|
 | `DJANGO_SECRET_KEY`    | Yes      | --                     | Secret key for cryptographic signing. Generate with `django.core.management.utils.get_random_secret_key()`. |
 | `DJANGO_DEBUG`         | No       | `False`                | Set to `True` only in development. Never enable in production. |
-| `DJANGO_ALLOWED_HOSTS` | Yes      | --                     | Comma-separated list of allowed hostnames (e.g. `pyscoped.dev,www.pyscoped.dev`). |
+| `DJANGO_ALLOWED_HOSTS` | Yes      | --                     | Comma-separated list of allowed hostnames (e.g. `kwip.tech,www.kwip.tech`). |
 | `DJANGO_LOG_LEVEL`     | No       | `INFO`                 | Root logger level. Use `DEBUG` for development troubleshooting.|
 
 ### Database
@@ -74,7 +74,7 @@ The platform uses `dj-database-url` to parse `DATABASE_URL` into Django's `DATAB
 | `EMAIL_HOST_USER` | No       | --                          | SMTP authentication username.                       |
 | `EMAIL_HOST_PASSWORD` | No   | --                          | SMTP authentication password.                       |
 | `EMAIL_USE_TLS`   | No       | `True`                      | Enable TLS for SMTP connections.                    |
-| `DEFAULT_FROM_EMAIL` | No    | `noreply@pyscoped.dev`      | Default sender address for outgoing email.          |
+| `DEFAULT_FROM_EMAIL` | No    | `noreply@kwip.info`         | Default sender address for outgoing email.          |
 
 ### pyscoped Library
 
@@ -184,7 +184,7 @@ Set all required environment variables via the Heroku CLI or dashboard:
 
 ```bash
 heroku config:set DJANGO_SECRET_KEY="$(python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')"
-heroku config:set DJANGO_ALLOWED_HOSTS="your-app.herokuapp.com,pyscoped.dev"
+heroku config:set DJANGO_ALLOWED_HOSTS="your-app.herokuapp.com,kwip.tech"
 heroku config:set CLERK_SECRET_KEY="sk_live_..."
 heroku config:set CLERK_PUBLISHABLE_KEY="pk_live_..."
 heroku config:set CLERK_WEBHOOK_SIGNING_SECRET="whsec_..."

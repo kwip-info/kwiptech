@@ -6,7 +6,7 @@ category: Platform API
 
 # REST API Reference
 
-Base URL: `https://api.pyscoped.dev/v1`
+Base URL: `https://kwip.tech/v1`
 
 All request and response bodies use JSON (`Content-Type: application/json`).
 
