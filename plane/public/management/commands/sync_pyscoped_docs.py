@@ -111,6 +111,6 @@ class Command(BaseCommand):
             for line in result.stdout.split("\n"):
                 if line.startswith("Version:"):
                     return line.split(":", 1)[1].strip()
-        except Exception:
+        except (ValueError, IndexError):
             pass
         return None

@@ -4,9 +4,8 @@ Idempotent: each Stripe event ID is recorded in StripeEvent before
 processing. Duplicate deliveries are silently acknowledged.
 """
 
-import logging
-
 from django.conf import settings
+from scoped.logging import get_logger
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -14,7 +13,7 @@ from django.views.decorators.http import require_POST
 from plane.billing.models import StripeEvent
 from plane.core.models import Organization
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.billing.webhooks")
 
 
 @csrf_exempt
@@ -53,7 +52,7 @@ def stripe_webhook(request):
         handler(event["data"]["object"])
         StripeEvent.objects.create(id=event_id, event_type=event["type"])
     except Exception:
-        logger.exception("Stripe webhook handler failed for %s", event["type"])
+        logger.exception("Stripe webhook handler failed", event_type=event["type"])
         # Don't record — allow Stripe to retry
         return HttpResponse("Handler error", status=500)
 
@@ -84,9 +83,9 @@ def _handle_checkout_completed(session):
         org.billing_status = "active"
         org.save(update_fields=["plan", "stripe_subscription_id", "billing_status"])
         _audit_billing_change(org, "plan_upgrade", {"plan": old_plan}, {"plan": "pro"})
-        logger.info("Activated Pro plan for org %s", org.id)
+        logger.info("Activated Pro plan", org_id=org.id)
     except Organization.DoesNotExist:
-        logger.warning("Org %s not found for checkout completion", org_id)
+        logger.warning("Org not found for checkout completion", org_id=org_id)
 
 
 def _handle_subscription_updated(subscription):
@@ -121,7 +120,7 @@ def _handle_subscription_deleted(subscription):
         org.billing_status = "active"
         org.save(update_fields=["plan", "stripe_subscription_id", "billing_status"])
         _audit_billing_change(org, "plan_downgrade", {"plan": old_plan}, {"plan": "free"})
-        logger.info("Downgraded org %s to Free", org.id)
+        logger.info("Downgraded org to Free", org_id=org.id)
     except Organization.DoesNotExist:
         pass
 
@@ -142,12 +141,12 @@ def _handle_invoice_payment_failed(invoice):
             org.billing_status = "suspended"
             org.save(update_fields=["billing_status"])
             _audit_billing_change(org, "suspended", {"billing_status": "past_due"}, {"billing_status": "suspended"})
-            logger.warning("Suspended org %s after repeated payment failure", org.id)
+            logger.warning("Suspended org after repeated payment failure", org_id=org.id)
         else:
             org.billing_status = "past_due"
             org.save(update_fields=["billing_status"])
             _audit_billing_change(org, "past_due", {"billing_status": "active"}, {"billing_status": "past_due"})
-            logger.warning("Payment failed for org %s, marked past_due", org.id)
+            logger.warning("Payment failed, marked past_due", org_id=org.id)
     except Organization.DoesNotExist:
         pass
 
@@ -162,7 +161,7 @@ def _handle_invoice_paid(invoice):
             org.billing_status = "active"
             org.save(update_fields=["billing_status"])
             _audit_billing_change(org, "reactivated", {"billing_status": old_status}, {"billing_status": "active"})
-            logger.info("Reactivated org %s after payment", org.id)
+            logger.info("Reactivated org after payment", org_id=org.id)
     except Organization.DoesNotExist:
         pass
 

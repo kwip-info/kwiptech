@@ -4,11 +4,12 @@ Lazy initialization — only configures Stripe when called.
 No-ops gracefully when STRIPE_SECRET_KEY is not set.
 """
 
-import logging
+import stripe
 
 from django.conf import settings
+from scoped.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.billing.stripe_client")
 
 
 def get_stripe():
@@ -43,6 +44,6 @@ def create_customer(org):
         )
         org.stripe_customer_id = customer.id
         org.save(update_fields=["stripe_customer_id"])
-        logger.info("Created Stripe Customer %s for org %s", customer.id, org.id)
-    except Exception:
-        logger.warning("Failed to create Stripe Customer for org %s", org.id, exc_info=True)
+        logger.info("Created Stripe Customer", customer_id=customer.id, org_id=org.id)
+    except stripe.StripeError:
+        logger.warning("Failed to create Stripe Customer", org_id=org.id)

@@ -1,13 +1,13 @@
 """Account lookup and creation from Clerk JWT claims."""
 
-import logging
 from uuid import uuid4
 
 from django.db import IntegrityError
+from scoped.logging import get_logger
 
 from plane.core.models import Account, Application, Membership, Organization
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.auth.services")
 
 
 def get_or_create_account(clerk_user_id, claims):
@@ -36,7 +36,7 @@ def get_or_create_account(clerk_user_id, claims):
             account = Account.objects.get(email=email)
             account.clerk_user_id = clerk_user_id
             account.save(update_fields=["clerk_user_id"])
-            logger.info("Linked Clerk user %s to existing account %s", clerk_user_id, account.id)
+            logger.info("Linked Clerk user to existing account", clerk_user_id=clerk_user_id, account_id=account.id)
             ensure_personal_organization(account)
             return account
         except Account.DoesNotExist:
@@ -49,7 +49,7 @@ def get_or_create_account(clerk_user_id, claims):
             email=email,
             clerk_user_id=clerk_user_id,
         )
-        logger.info("Created new account %s for Clerk user %s", account.id, clerk_user_id)
+        logger.info("Created new account", account_id=account.id, clerk_user_id=clerk_user_id)
         ensure_personal_organization(account)
         return account
     except IntegrityError:
@@ -105,5 +105,5 @@ def ensure_personal_organization(account):
     from plane.billing.stripe_client import create_customer
     create_customer(org)
 
-    logger.info("Created personal organization %s for account %s", org.id, account.id)
+    logger.info("Created personal organization", org_id=org.id, account_id=account.id)
     return org

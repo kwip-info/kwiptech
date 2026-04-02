@@ -5,7 +5,6 @@ Date series use ISO date strings as labels. Counts are plain integers.
 """
 
 import json
-import logging
 from collections import defaultdict
 from datetime import timedelta
 
@@ -14,10 +13,13 @@ from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 
+from scoped.exceptions import ScopedError
+from scoped.logging import get_logger
+
 from plane.billing.models import UsageSnapshot
 from plane.core.models import ApiKey, SyncBatchRecord, SyncedAuditEntry
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.dashboard.analytics")
 
 
 def _date_range(days):
@@ -42,8 +44,8 @@ def get_recent_activity(organization, limit=10):
         client = get_client()
         services = build_services(client._backend)
         return services["audit_query"].query(limit=limit, order_by="-sequence")
-    except Exception:
-        logger.warning("Failed to fetch recent activity", exc_info=True)
+    except Exception:  # Graceful degradation — scoped may be unavailable
+        logger.warning("Failed to fetch recent activity")
         return []
 
 
@@ -56,7 +58,7 @@ def get_audit_count_today(organization):
         services = build_services(client._backend)
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         return services["audit_query"].count(since=today_start)
-    except Exception:
+    except Exception:  # Graceful degradation — scoped may be unavailable
         return 0
 
 
@@ -90,7 +92,7 @@ def get_key_activity_series(application, days=7):
             day = entry.timestamp.date().isoformat()
             if day in data:
                 data[day] += 1
-    except Exception:
+    except Exception:  # Graceful degradation — scoped may be unavailable
         pass
 
     return {"labels": labels, "data": [data[d] for d in labels]}

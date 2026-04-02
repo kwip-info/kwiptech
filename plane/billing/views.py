@@ -1,16 +1,17 @@
 """Billing views — checkout, portal, billing overview."""
 
-import logging
+import stripe
 
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import redirect, render
+from scoped.logging import get_logger
 
 from plane.billing.models import BillingPeriod, Plan
 from plane.billing.stripe_client import get_stripe
 from plane.dashboard.views import require_permission
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.billing.views")
 
 
 @require_permission("billing.manage")
@@ -56,7 +57,7 @@ def create_checkout_session(request):
             metadata={"org_id": org.id},
         )
         return redirect(session.url)
-    except Exception:
+    except stripe.StripeError:
         logger.exception("Failed to create Stripe Checkout Session")
         messages.error(request, "Could not start checkout. Please try again.")
         return redirect("dashboard:billing")
@@ -84,7 +85,7 @@ def customer_portal(request):
             return_url=request.build_absolute_uri("/dashboard/billing/"),
         )
         return redirect(session.url)
-    except Exception:
+    except stripe.StripeError:
         logger.exception("Failed to create Stripe Portal Session")
         messages.error(request, "Could not open billing portal.")
         return redirect("dashboard:billing")

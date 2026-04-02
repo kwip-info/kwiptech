@@ -1,14 +1,15 @@
 """Clerk JWT verification with JWKS key caching."""
 
 import json
-import logging
 import time
+import urllib.error
 import urllib.request
 
 import jwt
 from django.conf import settings
+from scoped.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.auth.jwt")
 
 
 class JwtVerificationError(Exception):
@@ -68,7 +69,7 @@ class _JwksKeyCache:
                 data = json.loads(resp.read())
                 self._keys = data.get("keys", [])
                 self._fetched_at = time.time()
-        except Exception:
+        except (urllib.error.URLError, json.JSONDecodeError, KeyError, jwt.PyJWKClientError):
             logger.exception("Failed to fetch JWKS from Clerk")
             if self._keys is None:
                 raise JwtVerificationError("Cannot fetch JWKS and no cached keys")

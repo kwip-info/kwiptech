@@ -63,7 +63,7 @@ class ClerkWebhookEndpointTest(TestCase):
             "type": "organization.created",
             "data": {},  # Missing required fields will cause KeyError
         }
-        with self.assertLogs("plane.webhooks.views", level="ERROR"):
+        with self.assertLogs("pyscoped.plane.webhooks.views", level="ERROR"):
             response = self.client.post(
                 "/webhooks/clerk/",
                 data=json.dumps({}),

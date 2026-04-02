@@ -14,6 +14,8 @@ import secrets
 
 from django.db import models, transaction
 from django.utils import timezone
+from scoped.exceptions import ScopedError
+from scoped.ids import PrincipalId, RuleId, ScopeId
 from scoped.logging import get_logger
 
 _scoped_logger = get_logger("scoped_sync")
@@ -24,7 +26,7 @@ def _get_scoped_client():
     try:
         from scoped.contrib.django import get_client
         return get_client()
-    except Exception:
+    except Exception:  # Graceful degradation — scoped may not be configured
         return None
 
 
@@ -268,7 +270,7 @@ class Organization(models.Model):
                         kind="org",
                         display_name=self.name,
                         created_by="system",
-                        principal_id=self.id,
+                        principal_id=PrincipalId(self.id),
                     )
                     scope = services["scopes"].create_scope(
                         name=self.slug,
@@ -298,7 +300,7 @@ class Organization(models.Model):
                         description=f"Organization: {self.name}",
                         updated_by=updated_by,
                     )
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning("Failed to sync org to scoped", org_id=self.id)
 
     def archive_in_scoped(self, *, archived_by: str = "system") -> None:
@@ -314,7 +316,7 @@ class Organization(models.Model):
                 self.scoped_scope_id,
                 archived_by=archived_by,
             )
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning("Failed to archive scoped scope for org", org_id=self.id)
 
 
@@ -365,8 +367,8 @@ class Application(models.Model):
                 if not self.scoped_scope_id:
                     scope = services["scopes"].create_scope(
                         name=self.slug,
-                        owner_id=org.scoped_principal_id,
-                        parent_scope_id=org.scoped_scope_id,
+                        owner_id=PrincipalId(org.scoped_principal_id),
+                        parent_scope_id=ScopeId(org.scoped_scope_id),
                         description=f"Application: {self.name}",
                     )
                     Application.objects.filter(pk=self.pk).update(
@@ -384,7 +386,7 @@ class Application(models.Model):
                         description=f"Application: {self.name}",
                         updated_by=updated_by,
                     )
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning("Failed to sync app to scoped", app_id=self.id)
 
     def archive_in_scoped(self, *, archived_by: str = "system") -> None:
@@ -400,7 +402,7 @@ class Application(models.Model):
                 self.scoped_scope_id,
                 archived_by=archived_by,
             )
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning("Failed to archive scoped scope for app", app_id=self.id)
 
 
@@ -478,7 +480,7 @@ class Role(models.Model):
             for rule_id in self.scoped_rule_ids or []:
                 try:
                     services["rules"].archive_rule(rule_id, archived_by=created_by)
-                except Exception:
+                except ScopedError:
                     pass
 
             # Create new rules
@@ -505,7 +507,7 @@ class Role(models.Model):
 
             Role.objects.filter(pk=self.pk).update(scoped_rule_ids=rule_ids)
             self.scoped_rule_ids = rule_ids
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning("Failed to sync rules for role", role_name=self.name)
 
     def archive_rules_in_scoped(self, *, archived_by: str = "system") -> None:
@@ -520,9 +522,9 @@ class Role(models.Model):
             for rule_id in self.scoped_rule_ids:
                 try:
                     services["rules"].archive_rule(rule_id, archived_by=archived_by)
-                except Exception:
+                except ScopedError:
                     pass
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning("Failed to archive scoped rules for role", role_name=self.name)
 
 
@@ -634,7 +636,7 @@ class Membership(models.Model):
                 scoped_membership_id=sm.id,
             )
             self.scoped_membership_id = sm.id
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning(
                 "Failed to sync membership to scoped",
                 account_id=self.account_id, org_id=self.organization_id,
@@ -672,7 +674,7 @@ class Membership(models.Model):
                         scoped_membership_id=sm.id,
                     )
                     m.scoped_membership_id = sm.id
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning(
                 "Failed to bulk sync memberships", org_id=org.id,
             )
@@ -696,7 +698,7 @@ class Membership(models.Model):
                     principal_id=account_principal.id,
                     revoked_by=revoked_by,
                 )
-        except Exception:
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
             _scoped_logger.warning(
                 "Failed to revoke scoped membership",
                 account_id=self.account_id, org_id=org.id,

@@ -1,10 +1,9 @@
 """Svix webhook signature verification for Clerk webhooks."""
 
-import logging
-
 from django.conf import settings
+from scoped.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.webhooks.verification")
 
 
 def verify_webhook(payload_bytes, headers):

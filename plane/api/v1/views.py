@@ -15,7 +15,10 @@ from django.utils import timezone as dj_timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from pydantic import ValidationError
 from rest_framework.response import Response
+
+from scoped.exceptions import ScopedError
 
 from plane.api.throttles import SyncBatchThrottle, KeyCreateThrottle
 
@@ -36,6 +39,15 @@ from scoped.sync.models import (
     RevokeKeyResponse,
     ApiEnvironment,
 )
+
+
+# =========================================================================
+# Constants
+# =========================================================================
+
+API_VERSION = "2026-04-01"
+SIGNING_KEY_SUFFIX = ":pyscoped-sync-v1"
+MAX_BATCH_MULTIPLIER = 10  # Hard cap: max_batch_size * multiplier
 
 
 # =========================================================================
@@ -87,7 +99,7 @@ def ping(request):
     resp = PingResponse(
         ok=True,
         server_time=datetime.now(timezone.utc),
-        api_version="2026-04-01",
+        api_version=API_VERSION,
     )
     return Response(resp.model_dump(mode="json"))
 
@@ -113,7 +125,7 @@ def ingest_batch(request):
 
     try:
         batch = SyncBatch.model_validate(request.data)
-    except Exception as exc:
+    except ValidationError as exc:
         return Response(
             {"error": "validation_error", "message": str(exc), "details": {}},
             status=status.HTTP_400_BAD_REQUEST,
@@ -152,8 +164,8 @@ def ingest_batch(request):
                     )
             else:
                 # Paid tier — hard ceiling at 10x max to prevent bill shock
-                hard_object_cap = plan_obj.max_objects * 10
-                hard_principal_cap = plan_obj.max_principals * 10
+                hard_object_cap = plan_obj.max_objects * MAX_BATCH_MULTIPLIER
+                hard_principal_cap = plan_obj.max_principals * MAX_BATCH_MULTIPLIER
                 if counts.active_objects > hard_object_cap:
                     errors.append(
                         f"Object hard cap exceeded: {counts.active_objects}/{hard_object_cap} — contact support to increase"
@@ -276,7 +288,7 @@ def verify_sync(request):
 
     try:
         req = SyncVerifyRequest.model_validate(request.data)
-    except Exception as exc:
+    except ValidationError as exc:
         return Response(
             {"error": "validation_error", "message": str(exc), "details": {}},
             status=status.HTTP_400_BAD_REQUEST,
@@ -346,7 +358,7 @@ def create_key(request):
 
     try:
         req = CreateKeyRequest.model_validate(request.data)
-    except Exception as exc:
+    except ValidationError as exc:
         return Response(
             {"error": "validation_error", "message": str(exc), "details": {}},
             status=status.HTTP_400_BAD_REQUEST,
@@ -373,12 +385,12 @@ def create_key(request):
                 },
             )
             scoped_object_id = obj.id
-    except Exception:
+    except ScopedError:
         pass  # Scoped is additive — Django model is the projection
 
     # Derive and store the signing key for HMAC verification on future syncs
     signing_key = hashlib.sha256(
-        (full_key + ":pyscoped-sync-v1").encode()
+        (full_key + SIGNING_KEY_SUFFIX).encode()
     ).hexdigest()
 
     ApiKey.objects.create(
@@ -408,7 +420,7 @@ def revoke_key(request):
 
     try:
         req = RevokeKeyRequest.model_validate(request.data)
-    except Exception as exc:
+    except ValidationError as exc:
         return Response(
             {"error": "validation_error", "message": str(exc), "details": {}},
             status=status.HTTP_400_BAD_REQUEST,
@@ -438,7 +450,7 @@ def revoke_key(request):
                         "revoked_at": dj_timezone.now().isoformat(),
                     },
                 )
-        except Exception:
+        except ScopedError:
             pass  # Scoped is additive
 
     now = dj_timezone.now()

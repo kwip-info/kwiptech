@@ -1,13 +1,12 @@
 """Clerk authentication middleware for dashboard requests."""
 
-import logging
-
 from django.shortcuts import redirect
+from scoped.logging import get_logger
 
 from plane.auth.jwt import JwtVerificationError, verify_clerk_token
 from plane.auth.services import get_or_create_account
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.auth.middleware")
 
 PROTECTED_PREFIXES = ("/dashboard/",)
 SKIP_PREFIXES = ("/admin/", "/v1/", "/static/", "/webhooks/")
@@ -46,7 +45,7 @@ class ClerkAuthMiddleware:
         try:
             claims = verify_clerk_token(token)
         except JwtVerificationError:
-            logger.debug("Clerk JWT verification failed for %s", request.path)
+            logger.debug(f"Clerk JWT verification failed for {request.path}")
             if is_protected:
                 response = redirect(SIGN_IN_URL)
                 response.delete_cookie("__session")

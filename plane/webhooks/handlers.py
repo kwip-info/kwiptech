@@ -1,6 +1,5 @@
 """Clerk webhook event handlers — organization and membership lifecycle."""
 
-import logging
 from uuid import uuid4
 
 from django.utils.text import slugify
@@ -15,8 +14,9 @@ from plane.core.models import (
     Role,
     RolePermission,
 )
+from scoped.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.webhooks.handlers")
 
 CLERK_ROLE_MAP = {
     "org:admin": "Admin",
@@ -31,7 +31,7 @@ def handle_organization_created(data):
     slug = slugify(data.get("slug", name))
 
     if Organization.objects.filter(clerk_org_id=clerk_org_id).exists():
-        logger.info("Organization %s already exists, skipping", clerk_org_id)
+        logger.info("Organization already exists, skipping", clerk_org_id=clerk_org_id)
         return
 
     creator_id = data.get("created_by")
@@ -67,7 +67,7 @@ def handle_organization_created(data):
     from plane.billing.stripe_client import create_customer
     create_customer(org)
 
-    logger.info("Created organization %s (%s)", org.name, org.id)
+    logger.info("Created organization", org_id=org.id, org_name=org.name)
 
 
 def handle_organization_updated(data):
@@ -76,7 +76,7 @@ def handle_organization_updated(data):
     try:
         org = Organization.objects.get(clerk_org_id=clerk_org_id)
     except Organization.DoesNotExist:
-        logger.warning("Organization %s not found for update", clerk_org_id)
+        logger.warning("Organization not found for update", clerk_org_id=clerk_org_id)
         return
 
     name = data.get("name")
@@ -96,7 +96,7 @@ def handle_organization_deleted(data):
     try:
         org = Organization.objects.get(clerk_org_id=clerk_org_id)
     except Organization.DoesNotExist:
-        logger.warning("Organization %s not found for deletion", clerk_org_id)
+        logger.warning("Organization not found for deletion", clerk_org_id=clerk_org_id)
         return
 
     org.archive_in_scoped()
@@ -108,7 +108,7 @@ def handle_organization_deleted(data):
     from plane.core.models import ApiKey
     ApiKey.objects.filter(application__organization=org, is_active=True).update(is_active=False)
 
-    logger.info("Archived organization %s", org.id)
+    logger.info("Archived organization", org_id=org.id)
 
 
 def handle_membership_created(data):
@@ -126,7 +126,7 @@ def handle_membership_created(data):
     try:
         org = Organization.objects.get(clerk_org_id=clerk_org_id)
     except Organization.DoesNotExist:
-        logger.warning("Organization %s not found for membership", clerk_org_id)
+        logger.warning("Organization not found for membership", clerk_org_id=clerk_org_id)
         return
 
     account = Account.objects.filter(clerk_user_id=clerk_user_id).first()
@@ -134,7 +134,7 @@ def handle_membership_created(data):
         account = Account.objects.create(id=uuid4().hex, clerk_user_id=clerk_user_id)
 
     if Membership.objects.filter(organization=org, account=account).exists():
-        logger.info("Membership already exists for %s in %s", account.id, org.id)
+        logger.info("Membership already exists", account_id=account.id, org_id=org.id)
         return
 
     role = _resolve_role(org, clerk_role, is_first_member=not org.memberships.exists())
@@ -149,7 +149,7 @@ def handle_membership_created(data):
 
     membership.sync_to_scoped()
 
-    logger.info("Created membership for %s in %s as %s", account.id, org.id, role.name)
+    logger.info("Created membership", account_id=account.id, org_id=org.id, role=role.name)
 
 
 def handle_membership_updated(data):
@@ -162,7 +162,7 @@ def handle_membership_updated(data):
             clerk_membership_id=clerk_membership_id,
         )
     except Membership.DoesNotExist:
-        logger.warning("Membership %s not found for update", clerk_membership_id)
+        logger.warning("Membership not found for update", clerk_membership_id=clerk_membership_id)
         return
 
     role_name = CLERK_ROLE_MAP.get(clerk_role, "Developer")
@@ -171,7 +171,7 @@ def handle_membership_updated(data):
         membership.role = role
         membership.save(update_fields=["role"])
     except Role.DoesNotExist:
-        logger.warning("Role %s not found in org %s", role_name, membership.organization.id)
+        logger.warning("Role not found in org", role_name=role_name, org_id=membership.organization.id)
 
 
 def handle_membership_deleted(data):
@@ -186,7 +186,7 @@ def handle_membership_deleted(data):
 
     membership.revoke_in_scoped()
     membership.delete()
-    logger.info("Deleted membership %s", clerk_membership_id)
+    logger.info("Deleted membership", clerk_membership_id=clerk_membership_id)
 
 
 def _resolve_role(org, clerk_role, is_first_member=False):

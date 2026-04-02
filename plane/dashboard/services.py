@@ -5,16 +5,21 @@ The scoped object is the authoritative record; the Django ApiKey
 model is a projection for fast authentication lookups.
 """
 
-import logging
 from uuid import uuid4
 
 from django.utils import timezone
+
+from scoped.exceptions import ScopedError
+from scoped.logging import get_logger
 
 from plane.billing.models import UsageSnapshot
 from plane.core.models import Account, ApiKey, Application, SyncBatchRecord, SyncedAuditEntry
 from plane.dashboard.scoped import scoped_operation
 
-logger = logging.getLogger(__name__)
+KEY_PREFIX_LENGTH = 13  # "psc_live_" + 4 hex chars
+SECRET_NAME_PREFIX = "api_key:"
+
+logger = get_logger("plane.dashboard.services")
 
 
 def get_active_env(request):
@@ -134,7 +139,7 @@ def create_api_key(account, application, environment, label="", request=None):
     and a short-lived ref token is returned for one-time reveal.
     """
     full_key, key_hash = ApiKey.generate_key(environment)
-    key_prefix = full_key[:13]
+    key_prefix = full_key[:KEY_PREFIX_LENGTH]
     key_id = uuid4().hex
     scoped_object_id = None
     secret_ref_token = None
@@ -154,7 +159,7 @@ def create_api_key(account, application, environment, label="", request=None):
             scoped_object_id = obj.id
 
             secret, _sv = client.secrets.create(
-                f"api_key:{key_id}",
+                f"{SECRET_NAME_PREFIX}{key_id}",
                 full_key,
                 description=f"API key {key_prefix}... ({environment})",
             )
@@ -164,8 +169,8 @@ def create_api_key(account, application, environment, label="", request=None):
             if principal:
                 ref = client.secrets.grant_ref(secret.id, principal.principal)
                 secret_ref_token = ref.ref_token
-    except Exception:
-        logger.warning("Scoped object/secret creation failed for key %s", key_id, exc_info=True)
+    except Exception:  # Graceful degradation — scoped may be unavailable
+        logger.warning("Scoped object/secret creation failed", key_id=key_id)
 
     api_key = ApiKey.objects.create(
         id=key_id,
@@ -202,8 +207,8 @@ def revoke_api_key(application, key_id, request=None):
                         "revoked_at": now.isoformat(),
                     },
                 )
-        except Exception:
-            logger.warning("Scoped object update failed for key %s", key_id, exc_info=True)
+        except Exception:  # Graceful degradation — scoped may be unavailable
+            logger.warning("Scoped object update failed", key_id=key_id)
 
     # Update Django model (projection)
     api_key.is_active = False
@@ -239,8 +244,8 @@ def get_key_versions(api_key):
         from plane.dashboard.scoped import get_client
         client = get_client()
         return client.objects.versions(api_key.scoped_object_id)
-    except Exception:
-        logger.warning("Failed to fetch versions for key %s", api_key.id, exc_info=True)
+    except Exception:  # Graceful degradation — scoped may be unavailable
+        logger.warning("Failed to fetch versions", key_id=api_key.id)
         return []
 
 
@@ -255,8 +260,8 @@ def get_key_audit_trail(api_key):
             target_id=api_key.scoped_object_id,
             order_by="-sequence",
         )
-    except Exception:
-        logger.warning("Failed to fetch audit trail for key %s", api_key.id, exc_info=True)
+    except Exception:  # Graceful degradation — scoped may be unavailable
+        logger.warning("Failed to fetch audit trail", key_id=api_key.id)
         return []
 
 
@@ -313,8 +318,8 @@ def get_audit_trail(filters=None, page=1, per_page=25):
             ]
 
         return entries
-    except Exception:
-        logger.warning("Failed to query audit trail", exc_info=True)
+    except Exception:  # Graceful degradation — scoped may be unavailable
+        logger.warning("Failed to query audit trail")
         return []
 
 
@@ -334,8 +339,8 @@ def resolve_key_secret(ref_token):
     try:
         with scoped_operation() as client:
             return client.secrets.resolve(ref_token)
-    except Exception:
-        logger.warning("Failed to resolve secret ref", exc_info=True)
+    except Exception:  # Graceful degradation — scoped may be unavailable
+        logger.warning("Failed to resolve secret ref")
         return None
 
 
@@ -354,7 +359,7 @@ def rotate_api_key(application, key_id, request=None):
 
     # Generate new credentials
     full_key, key_hash = ApiKey.generate_key(old_key.environment)
-    key_prefix = full_key[:13]
+    key_prefix = full_key[:KEY_PREFIX_LENGTH]
     new_key_id = uuid4().hex
     secret_ref_token = None
 
@@ -377,7 +382,7 @@ def rotate_api_key(application, key_id, request=None):
 
                 # Store rotated key in vault
                 secret, _sv = client.secrets.create(
-                    f"api_key:{new_key_id}",
+                    f"{SECRET_NAME_PREFIX}{new_key_id}",
                     full_key,
                     description=f"Rotated API key {key_prefix}... ({old_key.environment})",
                 )
@@ -387,8 +392,8 @@ def rotate_api_key(application, key_id, request=None):
                 if principal:
                     ref = client.secrets.grant_ref(secret.id, principal.principal)
                     secret_ref_token = ref.ref_token
-        except Exception:
-            logger.warning("Scoped rotation failed for key %s", key_id, exc_info=True)
+        except Exception:  # Graceful degradation — scoped may be unavailable
+            logger.warning("Scoped rotation failed", key_id=key_id)
 
     # Revoke old Django model
     old_key.is_active = False

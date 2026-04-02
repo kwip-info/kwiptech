@@ -5,16 +5,17 @@ Rate limiting is applied as defense-in-depth; Svix signature verification
 """
 
 import json
-import logging
 
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from scoped.logging import get_logger
+
 from plane.webhooks import handlers
 from plane.webhooks.ratelimit import webhook_rate_limit
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.webhooks.views")
 
 EVENT_HANDLERS = {
     "organization.created": handlers.handle_organization_created,
@@ -43,13 +44,13 @@ def clerk_webhook(request):
 
     handler = EVENT_HANDLERS.get(event_type)
     if handler is None:
-        logger.debug("Ignoring unhandled webhook event: %s", event_type)
+        logger.debug(f"Ignoring unhandled webhook event: {event_type}")
         return JsonResponse({"status": "ignored"})
 
     try:
         handler(data)
     except Exception:
-        logger.exception("Webhook handler failed for event %s", event_type)
+        logger.exception("Webhook handler failed", event_type=event_type)
         return HttpResponse("Handler error", status=500)
 
     return JsonResponse({"status": "ok"})

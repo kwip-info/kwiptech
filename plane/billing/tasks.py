@@ -3,17 +3,20 @@
 Run daily via management command or scheduler.
 """
 
-import logging
 from datetime import timedelta
 
 from django.db import models
 from django.utils import timezone
 
+import stripe
+
+from scoped.logging import get_logger
+
 from plane.billing.models import BillingPeriod, Plan
 from plane.billing.stripe_client import get_stripe
 from plane.core.models import Organization
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.billing.tasks")
 
 PERIOD_DAYS = 30
 MAX_CLOSE_RETRIES = 5
@@ -50,9 +53,9 @@ def close_expired_periods():
                 close_error=str(getattr(period, "_close_error", "unknown")),
             )
             failed += 1
-            logger.exception("Failed to close billing period %s (attempt %d)", period.id, period.close_attempts + 1)
+            logger.exception("Failed to close billing period", period_id=period.id, attempt=period.close_attempts + 1)
 
-    logger.info("Closed %d billing periods, %d failed", closed, failed)
+    logger.info("Billing period close complete", closed=closed, failed=failed)
     return closed
 
 
@@ -82,7 +85,7 @@ def _close_period(period):
         period_start=period.period_end,
         period_end=period.period_end + timedelta(days=PERIOD_DAYS),
     )
-    logger.info("Closed period %s for org %s, created next", period.id, org.id)
+    logger.info("Closed period and created next", period_id=period.id, org_id=org.id)
 
 
 def report_metered_usage(period, org):
@@ -113,8 +116,8 @@ def report_metered_usage(period, org):
             org.stripe_subscription_id,
             expand=["items"],
         )
-    except Exception:
-        logger.warning("Failed to retrieve subscription for org %s", org.id, exc_info=True)
+    except stripe.StripeError:
+        logger.warning("Failed to retrieve subscription", org_id=org.id)
         return
 
     items_by_price = {
@@ -131,9 +134,9 @@ def report_metered_usage(period, org):
                     quantity=object_overage,
                     action="set",
                 )
-                logger.info("Reported %d object overage for org %s", object_overage, org.id)
-            except Exception:
-                logger.warning("Failed to report object usage for org %s", org.id, exc_info=True)
+                logger.info("Reported object overage", overage=object_overage, org_id=org.id)
+            except stripe.StripeError:
+                logger.warning("Failed to report object usage", org_id=org.id)
 
     if principal_overage > 0 and plan.stripe_principal_price_id:
         item_id = items_by_price.get(plan.stripe_principal_price_id)
@@ -144,9 +147,9 @@ def report_metered_usage(period, org):
                     quantity=principal_overage,
                     action="set",
                 )
-                logger.info("Reported %d principal overage for org %s", principal_overage, org.id)
-            except Exception:
-                logger.warning("Failed to report principal usage for org %s", org.id, exc_info=True)
+                logger.info("Reported principal overage", overage=principal_overage, org_id=org.id)
+            except stripe.StripeError:
+                logger.warning("Failed to report principal usage", org_id=org.id)
 
 
 def ensure_billing_period(org, account):

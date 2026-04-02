@@ -11,9 +11,10 @@ principal and appears in the pyscoped audit trail.
 
 from __future__ import annotations
 
-import logging
+from scoped.exceptions import ScopedError
+from scoped.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("plane.api.principal_resolver")
 
 
 def resolve_principal(request):
@@ -50,7 +51,6 @@ def resolve_principal(request):
             kind="account",
             principal_id=account.id,
         )
-    except Exception:
-        # Principal may already exist (race condition or registry conflict)
-        logger.debug("Principal create failed for %s, retrying find", account.id)
+    except Exception:  # Principal may already exist (race condition or registry conflict)
+        logger.debug("Principal create failed, retrying find", account_id=account.id)
         return client.principals.find(account.id)
