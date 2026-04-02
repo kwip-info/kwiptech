@@ -1,4 +1,8 @@
-"""Stripe webhook handler — subscription lifecycle events."""
+"""Stripe webhook handler — subscription lifecycle events.
+
+Idempotent: each Stripe event ID is recorded in StripeEvent before
+processing. Duplicate deliveries are silently acknowledged.
+"""
 
 import logging
 
@@ -7,6 +11,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from plane.billing.models import StripeEvent
 from plane.core.models import Organization
 
 logger = logging.getLogger(__name__)
@@ -33,17 +38,35 @@ def stripe_webhook(request):
         logger.warning("Stripe webhook signature verification failed")
         return HttpResponse("Invalid signature", status=400)
 
+    # Idempotency: skip if already processed
+    event_id = event.get("id", "")
+    if StripeEvent.objects.filter(id=event_id).exists():
+        return JsonResponse({"status": "duplicate"})
+
     handler = EVENT_HANDLERS.get(event["type"])
     if handler is None:
+        # Record unhandled events too (prevents reprocessing on retry)
+        StripeEvent.objects.create(id=event_id, event_type=event["type"])
         return JsonResponse({"status": "ignored"})
 
     try:
         handler(event["data"]["object"])
+        StripeEvent.objects.create(id=event_id, event_type=event["type"])
     except Exception:
         logger.exception("Stripe webhook handler failed for %s", event["type"])
+        # Don't record — allow Stripe to retry
         return HttpResponse("Handler error", status=500)
 
     return JsonResponse({"status": "ok"})
+
+
+def _audit_billing_change(org, action, before, after):
+    """Record billing changes via pyscoped structured logging."""
+    from scoped.logging import get_logger
+    get_logger("billing").audit(
+        f"billing.{action}",
+        org_id=org.id, org_name=org.name, before=before, after=after,
+    )
 
 
 def _handle_checkout_completed(session):
@@ -55,10 +78,12 @@ def _handle_checkout_completed(session):
 
     try:
         org = Organization.objects.get(id=org_id)
+        old_plan = org.plan
         org.plan = "pro"
         org.stripe_subscription_id = subscription_id
         org.billing_status = "active"
         org.save(update_fields=["plan", "stripe_subscription_id", "billing_status"])
+        _audit_billing_change(org, "plan_upgrade", {"plan": old_plan}, {"plan": "pro"})
         logger.info("Activated Pro plan for org %s", org.id)
     except Organization.DoesNotExist:
         logger.warning("Org %s not found for checkout completion", org_id)
@@ -90,35 +115,54 @@ def _handle_subscription_deleted(subscription):
     customer_id = subscription.get("customer")
     try:
         org = Organization.objects.get(stripe_customer_id=customer_id)
+        old_plan = org.plan
         org.plan = "free"
         org.stripe_subscription_id = ""
         org.billing_status = "active"
         org.save(update_fields=["plan", "stripe_subscription_id", "billing_status"])
+        _audit_billing_change(org, "plan_downgrade", {"plan": old_plan}, {"plan": "free"})
         logger.info("Downgraded org %s to Free", org.id)
     except Organization.DoesNotExist:
         pass
 
 
 def _handle_invoice_payment_failed(invoice):
-    """Mark org as past_due on payment failure."""
+    """Mark org as past_due on payment failure.
+
+    Dunning escalation:
+    - First failure: past_due (3-day grace, Stripe retries automatically)
+    - If billing_status is already past_due: escalate to suspended
+      (blocks sync ingest until payment succeeds)
+    """
     customer_id = invoice.get("customer")
     try:
         org = Organization.objects.get(stripe_customer_id=customer_id)
-        org.billing_status = "past_due"
-        org.save(update_fields=["billing_status"])
-        logger.warning("Payment failed for org %s", org.id)
+        if org.billing_status == "past_due":
+            # Already past_due — escalate to suspended
+            org.billing_status = "suspended"
+            org.save(update_fields=["billing_status"])
+            _audit_billing_change(org, "suspended", {"billing_status": "past_due"}, {"billing_status": "suspended"})
+            logger.warning("Suspended org %s after repeated payment failure", org.id)
+        else:
+            org.billing_status = "past_due"
+            org.save(update_fields=["billing_status"])
+            _audit_billing_change(org, "past_due", {"billing_status": "active"}, {"billing_status": "past_due"})
+            logger.warning("Payment failed for org %s, marked past_due", org.id)
     except Organization.DoesNotExist:
         pass
 
 
 def _handle_invoice_paid(invoice):
-    """Clear past_due status on successful payment."""
+    """Clear past_due/suspended status on successful payment."""
     customer_id = invoice.get("customer")
     try:
         org = Organization.objects.get(stripe_customer_id=customer_id)
-        if org.billing_status == "past_due":
+        if org.billing_status in ("past_due", "suspended"):
+            old_status = org.billing_status
             org.billing_status = "active"
             org.save(update_fields=["billing_status"])
+            _audit_billing_change(org, "reactivated", {"billing_status": old_status}, {"billing_status": "active"})
+            logger.info("Reactivated org %s after payment", org.id)
     except Organization.DoesNotExist:
         pass
 

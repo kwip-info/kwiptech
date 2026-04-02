@@ -26,6 +26,11 @@ class Account(models.Model):
     status = models.CharField(max_length=32, default="active")
     created_at = models.DateTimeField(default=timezone.now)
 
+    @property
+    def is_authenticated(self):
+        """Required by DRF's IsAuthenticated permission."""
+        return True
+
     class Meta:
         db_table = "accounts"
 
@@ -66,6 +71,10 @@ class ApiKey(models.Model):
 
     class Meta:
         db_table = "api_keys"
+        indexes = [
+            models.Index(fields=["account", "is_active"]),
+            models.Index(fields=["application", "is_active", "environment"]),
+        ]
 
     def __str__(self):
         return f"{self.key_prefix}... ({self.environment})"
@@ -187,6 +196,9 @@ class Organization(models.Model):
 
     class Meta:
         db_table = "organizations"
+        indexes = [
+            models.Index(fields=["plan", "billing_status"]),
+        ]
 
     def __str__(self):
         return self.name

@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-04-01",
+  "base_url": "/docs/platform",
+  "categories": [
+    {"id": "api", "label": "API", "order": 1},
+    {"id": "usage", "label": "Usage", "order": 2},
+    {"id": "internals", "label": "Internals", "order": 3},
+    {"id": "operations", "label": "Operations", "order": 4}
+  ],
+  "pages": [
+    {"path": "api-reference.md", "title": "REST API Reference", "category": "api", "order": 1, "description": "Complete v1 endpoint reference with request/response formats"},
+    {"path": "dashboard.md", "title": "Dashboard Guide", "category": "usage", "order": 1, "description": "All dashboard features — keys, audit, sync, billing, roles"},
+    {"path": "architecture.md", "title": "Platform Architecture", "category": "internals", "order": 1, "description": "Dual-model pattern, auth flow, billing pipeline, tech stack"},
+    {"path": "data-model.md", "title": "Data Model Reference", "category": "internals", "order": 2, "description": "Complete Django model reference with fields and relationships"},
+    {"path": "deployment.md", "title": "Deployment Guide", "category": "operations", "order": 1, "description": "Docker, Heroku, env vars, migrations, security"}
+  ]
+}

@@ -9,6 +9,24 @@ from django.db import models
 from django.utils import timezone
 
 
+class StripeEvent(models.Model):
+    """Tracks processed Stripe webhook events for idempotency.
+
+    Before processing any webhook, we check if the event ID has already
+    been recorded. If so, we skip processing to prevent double state changes.
+    """
+
+    id = models.CharField(max_length=255, primary_key=True)  # Stripe event ID (evt_...)
+    event_type = models.CharField(max_length=128)
+    processed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "stripe_events"
+
+    def __str__(self):
+        return f"{self.event_type} ({self.id})"
+
+
 class Plan(models.Model):
     """A billing plan tier with Stripe price mappings."""
 
@@ -98,6 +116,8 @@ class BillingPeriod(models.Model):
     peak_principals = models.IntegerField(default=0)
     total_audit_entries = models.IntegerField(default=0)
     finalized = models.BooleanField(default=False)
+    close_attempts = models.IntegerField(default=0)
+    close_error = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "billing_periods"

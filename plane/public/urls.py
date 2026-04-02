@@ -14,7 +14,18 @@ urlpatterns = [
     path("terms", views.terms, name="terms"),
     path("privacy", views.privacy, name="privacy"),
     path("cookies", views.cookies, name="cookies"),
+    # Documentation
     path("docs", views.docs, name="docs"),
+    path("docs/manifest.json", views.docs_manifest, name="docs_manifest"),
+    path("docs/claude.md", views.claude_md, name="claude_md"),
+    path("docs/raw/<path:path>", views.docs_raw, name="docs_raw"),
+    # Platform docs (served from local docs/platform/)
+    path("docs/platform/manifest.json", views.platform_docs_manifest, name="platform_docs_manifest"),
+    path("docs/platform/raw/<path:path>", views.platform_docs_raw, name="platform_docs_raw"),
+    path("docs/platform/<path:path>", views.platform_docs_page, name="platform_docs_page"),
+    # SDK docs (served from pyscoped package)
+    path("docs/<path:path>", views.docs_page, name="docs_page"),
+    # Auth
     path("sign-in", views.sign_in, name="sign_in"),
     path("sign-up", views.sign_up, name="sign_up"),
     path("sign-in/<path:rest>", views.sign_in, name="sign_in_step"),

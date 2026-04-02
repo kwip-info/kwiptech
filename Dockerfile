@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Sync pyscoped docs from PyPI at build time (production fallback)
+RUN python manage.py sync_pyscoped_docs --output /app/pyscoped-docs 2>/dev/null || true
+ENV PYSCOPED_DOCS_PATH=/app/pyscoped-docs
+
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
 EXPOSE 8000

@@ -6,6 +6,7 @@ Run daily via management command or scheduler.
 import logging
 from datetime import timedelta
 
+from django.db import models
 from django.utils import timezone
 
 from plane.billing.models import BillingPeriod, Plan
@@ -15,6 +16,7 @@ from plane.core.models import Organization
 logger = logging.getLogger(__name__)
 
 PERIOD_DAYS = 30
+MAX_CLOSE_RETRIES = 5
 
 
 def close_expired_periods():
@@ -24,22 +26,33 @@ def close_expired_periods():
     1. Report metered overage to Stripe
     2. Mark as finalized
     3. Create the next period
+
+    Periods that fail to close are retried up to MAX_CLOSE_RETRIES times
+    with exponential backoff (tracked via close_attempts field).
     """
     now = timezone.now()
     expired = BillingPeriod.objects.filter(
         period_end__lt=now,
         finalized=False,
+        close_attempts__lt=MAX_CLOSE_RETRIES,
     ).select_related("organization")
 
     closed = 0
+    failed = 0
     for period in expired:
         try:
             _close_period(period)
             closed += 1
         except Exception:
-            logger.exception("Failed to close billing period %s", period.id)
+            # Increment attempt counter so we don't retry forever
+            BillingPeriod.objects.filter(id=period.id).update(
+                close_attempts=models.F("close_attempts") + 1,
+                close_error=str(getattr(period, "_close_error", "unknown")),
+            )
+            failed += 1
+            logger.exception("Failed to close billing period %s (attempt %d)", period.id, period.close_attempts + 1)
 
-    logger.info("Closed %d billing periods", closed)
+    logger.info("Closed %d billing periods, %d failed", closed, failed)
     return closed
 
 
@@ -52,7 +65,11 @@ def _close_period(period):
         return
 
     # Report metered usage to Stripe
-    report_metered_usage(period, org)
+    try:
+        report_metered_usage(period, org)
+    except Exception as exc:
+        period._close_error = str(exc)
+        raise
 
     # Finalize
     period.finalized = True

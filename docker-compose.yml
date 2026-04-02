@@ -21,15 +21,43 @@ services:
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
+      - ../pyscoped:/app/pyscoped-src:ro
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - PYSCOPED_DOCS_PATH=/app/pyscoped-src/docs
     depends_on:
       db:
         condition: service_healthy
+
+  # Integration smoke test — runs SDK against the platform
+  # Usage: docker compose run --rm smoke-test
+  smoke-test:
+    build: .
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "Provisioning test config..."
+        CONFIG=$$(python manage.py create_test_sdk_config --base-url http://web:8000/v1 --json)
+        API_KEY=$$(echo $$CONFIG | python -c "import sys,json; print(json.load(sys.stdin)['api_key'])")
+        echo "Running smoke test..."
+        python -m scoped.testing.integration --base-url http://web:8000/v1 --api-key $$API_KEY
+    volumes:
+      - .:/app
+      - ../pyscoped:/app/pyscoped-src:ro
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app/pyscoped-src:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - test
 
 volumes:
   pgdata:

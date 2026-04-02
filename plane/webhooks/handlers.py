@@ -72,7 +72,7 @@ def handle_organization_created(data):
 
 
 def handle_organization_updated(data):
-    """Update organization name and slug."""
+    """Update organization name and slug, sync to pyscoped."""
     clerk_org_id = data["id"]
     try:
         org = Organization.objects.get(clerk_org_id=clerk_org_id)
@@ -87,6 +87,9 @@ def handle_organization_updated(data):
     if slug:
         org.slug = slugify(slug)
     org.save(update_fields=["name", "slug"])
+
+    from plane.core.scoped_sync import update_org_in_scoped
+    update_org_in_scoped(org)
 
 
 def handle_organization_deleted(data):

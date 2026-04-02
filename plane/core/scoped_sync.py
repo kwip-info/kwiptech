@@ -13,11 +13,11 @@ additive, never blocking. If the scoped backend is unavailable,
 Django models still work.
 """
 
-import logging
+from scoped.logging import get_logger
 
 from plane.dashboard.scoped import scoped_operation
 
-logger = logging.getLogger(__name__)
+logger = get_logger("scoped_sync")
 
 
 def _get_services(client):
@@ -50,7 +50,36 @@ def create_org_in_scoped(org):
             org.scoped_scope_id = scope.id
             org.save(update_fields=["scoped_principal_id", "scoped_scope_id"])
     except Exception:
-        logger.warning("Failed to create scoped objects for org %s", org.id, exc_info=True)
+        logger.warning("Failed to create scoped objects for org", org_id=org.id)
+
+
+def update_org_in_scoped(org, updated_by="system"):
+    """Update the org's scoped principal display_name and scope name/description."""
+    if not org.scoped_scope_id:
+        return
+    try:
+        with scoped_operation() as client:
+            services = _get_services(client)
+            # Update principal display_name
+            if org.scoped_principal_id:
+                services["principals"].update_principal(
+                    org.scoped_principal_id,
+                    display_name=org.name,
+                    updated_by=updated_by,
+                )
+            # Update scope name + description
+            services["scopes"].rename_scope(
+                org.scoped_scope_id,
+                new_name=org.slug,
+                renamed_by=updated_by,
+            )
+            services["scopes"].update_scope(
+                org.scoped_scope_id,
+                description=f"Organization: {org.name}",
+                updated_by=updated_by,
+            )
+    except Exception:
+        logger.warning("Failed to update scoped objects for org", org_id=org.id)
 
 
 def archive_org_in_scoped(org, archived_by="system"):
@@ -65,7 +94,7 @@ def archive_org_in_scoped(org, archived_by="system"):
                 archived_by=archived_by,
             )
     except Exception:
-        logger.warning("Failed to archive scoped scope for org %s", org.id, exc_info=True)
+        logger.warning("Failed to archive scoped scope for org", org_id=org.id)
 
 
 # -- Applications (scoped Scopes) -----------------------------------------
@@ -88,32 +117,28 @@ def create_app_in_scoped(app):
             app.scoped_scope_id = scope.id
             app.save(update_fields=["scoped_scope_id"])
     except Exception:
-        logger.warning("Failed to create scoped scope for app %s", app.id, exc_info=True)
+        logger.warning("Failed to create scoped scope for app", app_id=app.id)
 
 
 def update_app_in_scoped(app, updated_by="system"):
-    """Record an app rename via scope_modify audit entry.
-
-    The SDK doesn't have a scope rename method yet, so we write
-    the audit entry directly. This is the one place we do this —
-    everywhere else uses native SDK operations.
-    """
+    """Rename and update the app's scope via native SDK operations."""
     if not app.scoped_scope_id:
         return
     try:
         with scoped_operation() as client:
-            from scoped.types import ActionType
             services = _get_services(client)
-            services["audit_writer"].record(
-                actor_id=updated_by,
-                action=ActionType.SCOPE_MODIFY,
-                target_type="Scope",
-                target_id=app.scoped_scope_id,
-                scope_id=app.scoped_scope_id,
-                after_state={"name": app.name, "slug": app.slug},
+            services["scopes"].rename_scope(
+                app.scoped_scope_id,
+                new_name=app.slug,
+                renamed_by=updated_by,
+            )
+            services["scopes"].update_scope(
+                app.scoped_scope_id,
+                description=f"Application: {app.name}",
+                updated_by=updated_by,
             )
     except Exception:
-        logger.warning("Failed to record scope modify for app %s", app.id, exc_info=True)
+        logger.warning("Failed to update scoped scope for app %s", app.id, app_id=app.id)
 
 
 def archive_app_in_scoped(app, archived_by="system"):
@@ -128,7 +153,7 @@ def archive_app_in_scoped(app, archived_by="system"):
                 archived_by=archived_by,
             )
     except Exception:
-        logger.warning("Failed to archive scoped scope for app %s", app.id, exc_info=True)
+        logger.warning("Failed to archive scoped scope for app", app_id=app.id)
 
 
 # -- Memberships ----------------------------------------------------------
@@ -168,9 +193,49 @@ def create_membership_in_scoped(membership):
             membership.save(update_fields=["scoped_membership_id"])
     except Exception:
         logger.warning(
-            "Failed to create scoped membership for %s in org %s",
-            membership.account.id, membership.organization.id, exc_info=True,
+            "Failed to create scoped membership",
+            account_id=membership.account.id, org_id=membership.organization.id,
         )
+
+
+def create_memberships_in_scoped(memberships, org):
+    """Add multiple members to the org scope in one call via add_members."""
+    if not org.scoped_scope_id:
+        return
+    try:
+        with scoped_operation() as client:
+            from scoped.tenancy.models import ScopeRole
+            services = _get_services(client)
+
+            role_map = {
+                "Owner": "owner",
+                "Admin": "admin",
+                "Developer": "editor",
+                "Viewer": "viewer",
+            }
+
+            members = []
+            for m in memberships:
+                principal = services["principals"].find_principal(m.account.id)
+                if principal is None:
+                    continue
+                members.append({
+                    "principal_id": principal.id,
+                    "role": role_map.get(m.role.name, "viewer"),
+                })
+
+            if members:
+                results = services["scopes"].add_members(
+                    org.scoped_scope_id,
+                    members=members,
+                    granted_by=org.scoped_principal_id or "system",
+                )
+                # Update Django models with scoped membership IDs
+                for m, sm in zip(memberships, results):
+                    m.scoped_membership_id = sm.id
+                    m.save(update_fields=["scoped_membership_id"])
+    except Exception:
+        logger.warning("Failed to bulk-create scoped memberships for org %s", org.id, org_id=org.id)
 
 
 def revoke_membership_in_scoped(membership, revoked_by="system"):
@@ -192,8 +257,8 @@ def revoke_membership_in_scoped(membership, revoked_by="system"):
                 )
     except Exception:
         logger.warning(
-            "Failed to revoke scoped membership for %s in org %s",
-            membership.account.id, org.id, exc_info=True,
+            "Failed to revoke scoped membership",
+            account_id=membership.account.id, org_id=org.id,
         )
 
 
@@ -230,9 +295,7 @@ def create_role_rules_in_scoped(role):
             role.scoped_rule_ids = rule_ids
             role.save(update_fields=["scoped_rule_ids"])
     except Exception:
-        logger.warning(
-            "Failed to create scoped rules for role %s", role.name, exc_info=True,
-        )
+        logger.warning("Failed to create scoped rules for role", role_name=role.name)
 
 
 def update_role_rules_in_scoped(role, updated_by="system"):
@@ -258,9 +321,7 @@ def update_role_rules_in_scoped(role, updated_by="system"):
         # Create new rules
         create_role_rules_in_scoped(role)
     except Exception:
-        logger.warning(
-            "Failed to update scoped rules for role %s", role.name, exc_info=True,
-        )
+        logger.warning("Failed to update scoped rules for role", role_name=role.name)
 
 
 def archive_role_rules_in_scoped(role, archived_by="system"):
@@ -276,6 +337,4 @@ def archive_role_rules_in_scoped(role, archived_by="system"):
                 except Exception:
                     pass
     except Exception:
-        logger.warning(
-            "Failed to archive scoped rules for role %s", role.name, exc_info=True,
-        )
+        logger.warning("Failed to archive scoped rules for role", role_name=role.name)

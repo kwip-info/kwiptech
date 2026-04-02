@@ -1,0 +1,88 @@
+{% extends "_layouts/public.html" %}
+
+{% block title %}{{ title }} - scoped docs{% endblock %}
+
+{% block extra_head %}
+<!-- Syntax highlighting for code blocks -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
+{% endblock %}
+
+{% block page_content %}
+<div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12">
+    <div class="mb-6 flex items-center gap-3 text-sm text-gray-500">
+        <a href="{% url 'public:docs' %}" class="hover:text-gray-900">Docs</a>
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="text-gray-900">{{ title }}</span>
+    </div>
+
+    <div class="flex items-start justify-between mb-8">
+        <h1 class="text-2xl font-bold text-gray-900">{{ title }}</h1>
+        {% if is_platform %}
+        <a href="{% url 'public:platform_docs_raw' path|cut:'platform/' %}"
+           class="text-xs text-gray-400 hover:text-gray-600 font-mono">raw</a>
+        {% else %}
+        <a href="{% url 'public:docs_raw' path %}"
+           class="text-xs text-gray-400 hover:text-gray-600 font-mono">raw</a>
+        {% endif %}
+    </div>
+
+    <!-- Rendered markdown target -->
+    <article id="docs-content"
+             class="prose prose-gray max-w-none
+                    prose-headings:scroll-mt-20
+                    prose-h2:text-xl prose-h2:mt-10 prose-h2:border-b prose-h2:border-gray-200 prose-h2:pb-2
+                    prose-h3:text-lg prose-h3:mt-8
+                    prose-code:text-sm prose-code:text-gray-800 prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+                    prose-pre:bg-gray-900 prose-pre:rounded-lg [&_pre_code]:text-gray-100 [&_pre_code]:bg-transparent [&_pre_code]:p-0
+                    prose-a:text-brand-600 prose-a:no-underline hover:prose-a:text-brand-500
+                    prose-table:text-sm
+                    prose-th:bg-gray-50 prose-th:px-3 prose-th:py-2 prose-th:text-left
+                    prose-td:px-3 prose-td:py-2 prose-td:border-t prose-td:border-gray-100">
+        <!-- Fallback for no-JS -->
+        <pre class="whitespace-pre-wrap text-sm text-gray-700" id="docs-raw">{{ content }}</pre>
+    </article>
+
+    <div class="mt-12 border-t border-gray-200 pt-6 flex justify-between text-sm">
+        <a href="{% url 'public:docs' %}" class="text-gray-500 hover:text-gray-900">&larr; All documentation</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Marked.js for markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
+<!-- Highlight.js for syntax highlighting -->
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/languages/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/languages/bash.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/languages/sql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/languages/json.min.js"></script>
+<script>
+(function() {
+    const raw = document.getElementById('docs-raw');
+    const container = document.getElementById('docs-content');
+    if (!raw || !window.marked) return;
+
+    // Configure marked
+    marked.setOptions({
+        gfm: true,
+        breaks: false,
+        highlight: function(code, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                return hljs.highlight(code, { language: lang }).value;
+            }
+            return hljs.highlightAuto(code).value;
+        },
+    });
+
+    // Render markdown to HTML
+    const md = raw.textContent;
+    container.innerHTML = marked.parse(md);
+
+    // Fix code blocks that highlight.js may have missed
+    container.querySelectorAll('pre code:not(.hljs)').forEach(function(el) {
+        hljs.highlightElement(el);
+    });
+})();
+</script>
+{% endblock %}

@@ -9,7 +9,11 @@ from __future__ import annotations
 from django.utils import timezone
 from rest_framework import authentication, exceptions
 
+from scoped.logging import get_logger
+
 from plane.core.models import Account, ApiKey
+
+logger = get_logger("api_auth")
 
 
 class ApiKeyAuthentication(authentication.BaseAuthentication):
@@ -31,11 +35,21 @@ class ApiKeyAuthentication(authentication.BaseAuthentication):
                 key_hash=key_hash, is_active=True
             )
         except ApiKey.DoesNotExist:
+            logger.warning(
+                "API key auth failed",
+                key_prefix=raw_key[:13],
+                reason="invalid_or_revoked",
+            )
             raise exceptions.AuthenticationFailed("Invalid or revoked API key.")
 
         # Update last_used_at
         ApiKey.objects.filter(id=api_key.id).update(last_used_at=timezone.now())
 
-        # Return (user_proxy, auth_info)
-        # DRF expects (user, auth) — we use the account as the "user"
+        logger.info(
+            "API key authenticated",
+            key_id=api_key.id,
+            account_id=api_key.account_id,
+            environment=api_key.environment,
+        )
+
         return (api_key.account, api_key)

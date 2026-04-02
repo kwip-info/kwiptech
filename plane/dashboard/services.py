@@ -251,8 +251,10 @@ def get_key_audit_trail(api_key):
     try:
         from plane.dashboard.scoped import get_client
         client = get_client()
-        entries = client.audit.for_object(api_key.scoped_object_id)
-        return list(reversed(entries))
+        return client.audit.query(
+            target_id=api_key.scoped_object_id,
+            order_by="-sequence",
+        )
     except Exception:
         logger.warning("Failed to fetch audit trail for key %s", api_key.id, exc_info=True)
         return []
@@ -263,9 +265,6 @@ def get_audit_trail(filters=None, page=1, per_page=25):
 
     Supported filters: action, target_type, actor_id, search, since, until.
     Returns list of entries, most recent first.
-
-    TODO: sorting and pagination should be native to the scoped
-    audit query API (pyscoped SDK). Currently limited to offset/limit.
     """
     from scoped.types import ActionType
 
@@ -274,7 +273,11 @@ def get_audit_trail(filters=None, page=1, per_page=25):
         from plane.dashboard.scoped import get_client
         client = get_client()
 
-        query_kwargs = {"limit": per_page, "offset": (page - 1) * per_page}
+        query_kwargs = {
+            "limit": per_page,
+            "offset": (page - 1) * per_page,
+            "order_by": "-sequence",
+        }
 
         action_str = filters.get("action")
         if action_str:
@@ -297,7 +300,6 @@ def get_audit_trail(filters=None, page=1, per_page=25):
                     pass
 
         entries = client.audit.query(**query_kwargs)
-        entries = list(reversed(entries))
 
         # Client-side text search
         search = filters.get("search", "").lower()

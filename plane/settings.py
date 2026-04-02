@@ -120,6 +120,21 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
+# Validate Stripe config in production
+if not DEBUG and STRIPE_SECRET_KEY:
+    if not STRIPE_SECRET_KEY.startswith(("sk_live_", "sk_test_")):
+        raise ValueError("STRIPE_SECRET_KEY must start with sk_live_ or sk_test_")
+    if not STRIPE_WEBHOOK_SECRET.startswith("whsec_"):
+        raise ValueError("STRIPE_WEBHOOK_SECRET must start with whsec_")
+elif not DEBUG and not STRIPE_SECRET_KEY:
+    import warnings
+    warnings.warn(
+        "STRIPE_SECRET_KEY not set — billing is disabled. "
+        "Set it to enable paid plans and usage metering.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
+
 # ---------------------------------------------------------------------------
 # DRF
 # ---------------------------------------------------------------------------

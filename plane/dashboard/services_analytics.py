@@ -35,14 +35,13 @@ def _account_ids_for_org(organization):
 # -- Dashboard home --------------------------------------------------------
 
 def get_recent_activity(organization, limit=10):
-    """Last N scoped audit entries for the activity feed."""
+    """Last N scoped audit entries for the activity feed (most recent first)."""
     try:
         from plane.dashboard.scoped import get_client
         from scoped.contrib._base import build_services
         client = get_client()
         services = build_services(client._backend)
-        entries = services["audit_query"].query(limit=limit)
-        return list(reversed(entries))
+        return services["audit_query"].query(limit=limit, order_by="-sequence")
     except Exception:
         logger.warning("Failed to fetch recent activity", exc_info=True)
         return []

@@ -81,23 +81,50 @@ def ingest_batch(request):
     # or a pre-derived signing key stored alongside the key_hash.
     # For now, we accept the batch and log it.
 
-    # Plan limit enforcement
+    # Billing status enforcement
     org = account.personal_organization
+    if org and org.billing_status == "suspended":
+        ack = SyncBatchAck(
+            batch_id=batch.batch_id,
+            accepted=False,
+            server_sequence=0,
+            server_chain_hash="",
+            message="Account suspended — update payment method to resume sync",
+            errors=["billing_suspended"],
+        )
+        return Response(ack.model_dump(mode="json"), status=status.HTTP_402_PAYMENT_REQUIRED)
+
+    # Plan limit enforcement
     if org:
         from plane.billing.models import Plan as PlanModel
         plan_obj = PlanModel.objects.filter(id=org.plan).first()
-        if plan_obj and plan_obj.overage_per_object_cents == 0:
-            # Free tier — hard limits
+        if plan_obj:
             counts = batch.resource_counts
             errors = []
-            if counts.active_objects > plan_obj.max_objects:
-                errors.append(
-                    f"Object limit exceeded: {counts.active_objects}/{plan_obj.max_objects}"
-                )
-            if counts.active_principals > plan_obj.max_principals:
-                errors.append(
-                    f"Principal limit exceeded: {counts.active_principals}/{plan_obj.max_principals}"
-                )
+
+            if plan_obj.overage_per_object_cents == 0:
+                # Free tier — hard limits, no overage allowed
+                if counts.active_objects > plan_obj.max_objects:
+                    errors.append(
+                        f"Object limit exceeded: {counts.active_objects}/{plan_obj.max_objects}"
+                    )
+                if counts.active_principals > plan_obj.max_principals:
+                    errors.append(
+                        f"Principal limit exceeded: {counts.active_principals}/{plan_obj.max_principals}"
+                    )
+            else:
+                # Paid tier — hard ceiling at 10x max to prevent bill shock
+                hard_object_cap = plan_obj.max_objects * 10
+                hard_principal_cap = plan_obj.max_principals * 10
+                if counts.active_objects > hard_object_cap:
+                    errors.append(
+                        f"Object hard cap exceeded: {counts.active_objects}/{hard_object_cap} — contact support to increase"
+                    )
+                if counts.active_principals > hard_principal_cap:
+                    errors.append(
+                        f"Principal hard cap exceeded: {counts.active_principals}/{hard_principal_cap} — contact support to increase"
+                    )
+
             if errors:
                 ack = SyncBatchAck(
                     batch_id=batch.batch_id,
@@ -275,7 +302,7 @@ def list_keys(request):
 
 @api_view(["POST"])
 def create_key(request):
-    """Create a new API key."""
+    """Create a new API key (synced to pyscoped for audit trail)."""
     account: Account = request.user
 
     try:
@@ -290,6 +317,25 @@ def create_key(request):
 
     full_key, key_hash = ApiKey.generate_key(req.environment.value)
     key_id = uuid.uuid4().hex
+    scoped_object_id = None
+
+    # Dogfooding: create scoped object for audit trail + versioning
+    try:
+        from plane.dashboard.scoped import scoped_operation
+        with scoped_operation() as client:
+            obj, _ver = client.objects.create(
+                "api_key",
+                data={
+                    "key_id": key_id,
+                    "key_prefix": full_key[:13],
+                    "environment": req.environment.value,
+                    "label": req.label,
+                    "is_active": True,
+                },
+            )
+            scoped_object_id = obj.id
+    except Exception:
+        pass  # Scoped is additive — Django model is the projection
 
     ApiKey.objects.create(
         id=key_id,
@@ -298,6 +344,7 @@ def create_key(request):
         key_prefix=full_key[:13],
         environment=req.environment.value,
         label=req.label,
+        scoped_object_id=scoped_object_id,
     )
 
     resp = CreateKeyResponse(
@@ -329,6 +376,25 @@ def revoke_key(request):
             {"error": "not_found", "message": "Key not found", "details": {}},
             status=status.HTTP_404_NOT_FOUND,
         )
+
+    # Dogfooding: update scoped object for audit trail
+    if key.scoped_object_id:
+        try:
+            from plane.dashboard.scoped import scoped_operation
+            with scoped_operation() as client:
+                client.objects.update(
+                    key.scoped_object_id,
+                    data={
+                        "key_id": key.id,
+                        "key_prefix": key.key_prefix,
+                        "environment": key.environment,
+                        "label": key.label,
+                        "is_active": False,
+                        "revoked_at": dj_timezone.now().isoformat(),
+                    },
+                )
+        except Exception:
+            pass  # Scoped is additive
 
     now = dj_timezone.now()
     key.is_active = False
@@ -421,8 +487,12 @@ def get_plan(request):
 def _update_peak_usage(account: Account, objects: int, principals: int, entries: int):
     """Update peak counts for the current billing period.
 
-    Auto-creates the billing period if none exists.
+    Uses atomic F() expressions and conditional updates to avoid
+    read-modify-write race conditions under concurrent sync requests.
     """
+    from django.db.models import F, Value
+    from django.db.models.functions import Greatest
+
     from plane.billing.tasks import ensure_billing_period
 
     org = account.personal_organization
@@ -438,15 +508,8 @@ def _update_peak_usage(account: Account, objects: int, principals: int, entries:
     if period is None:
         return
 
-    changed = False
-    if objects > period.peak_objects:
-        period.peak_objects = objects
-        changed = True
-    if principals > period.peak_principals:
-        period.peak_principals = principals
-        changed = True
-    period.total_audit_entries += entries
-    changed = True
-
-    if changed:
-        period.save(update_fields=["peak_objects", "peak_principals", "total_audit_entries"])
+    BillingPeriod.objects.filter(id=period.id).update(
+        peak_objects=Greatest(F("peak_objects"), Value(objects)),
+        peak_principals=Greatest(F("peak_principals"), Value(principals)),
+        total_audit_entries=F("total_audit_entries") + entries,
+    )
