@@ -88,6 +88,7 @@ class ApiKey(models.Model):
         blank=True,
     )
     key_hash = models.CharField(max_length=128, unique=True, db_index=True)
+    signing_key_hash = models.CharField(max_length=128, null=True, blank=True)
     key_prefix = models.CharField(max_length=20)
     environment = models.CharField(max_length=10, choices=[("live", "Live"), ("test", "Test")])
     label = models.CharField(max_length=128, blank=True, default="")

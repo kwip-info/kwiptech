@@ -150,6 +150,15 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "EXCEPTION_HANDLER": "plane.api.exceptions.api_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
+        "user": "120/minute",
+        "sync": "30/minute",
+        "key_create": "10/minute",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -191,6 +200,9 @@ STORAGES = {
 # ---------------------------------------------------------------------------
 # Security — production hardening (disabled when DEBUG=True)
 # ---------------------------------------------------------------------------
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True

@@ -13,9 +13,11 @@ from datetime import datetime, timezone
 
 from django.utils import timezone as dj_timezone
 from rest_framework import status
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+
+from plane.api.throttles import SyncBatchThrottle, KeyCreateThrottle
 
 from plane.core.models import Account, ApiKey, SyncBatchRecord, SyncedAuditEntry
 from plane.billing.models import BillingPeriod, UsageSnapshot
@@ -34,6 +36,43 @@ from scoped.sync.models import (
     RevokeKeyResponse,
     ApiEnvironment,
 )
+
+
+# =========================================================================
+# HMAC Signature Verification
+# =========================================================================
+
+
+def _verify_signature(request, api_key):
+    """Verify HMAC-SHA256 signature on sync batch.
+
+    The SDK signs each batch body with a key derived from the raw API key:
+      signing_key = SHA256(raw_key + ":pyscoped-sync-v1")
+
+    The platform stores that derived key in ``api_key.signing_key_hash``
+    at key-creation time, so it can recompute the HMAC without ever
+    storing the raw key.
+
+    Legacy keys (created before signing was added) have a null
+    ``signing_key_hash`` — we skip verification for those to avoid
+    breaking existing integrations.
+    """
+    signature = request.META.get("HTTP_X_PYSCOPED_SIGNATURE")
+    if not signature:
+        return False  # No signature provided
+
+    if not api_key.signing_key_hash:
+        return True  # Legacy key without signing_key — skip verification
+
+    # Recompute HMAC over raw request body
+    body = request.body
+    expected = hmac.new(
+        api_key.signing_key_hash.encode(),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, expected)
 
 
 # =========================================================================
@@ -58,6 +97,7 @@ def ping(request):
 # =========================================================================
 
 @api_view(["POST"])
+@throttle_classes([SyncBatchThrottle])
 def ingest_batch(request):
     """Receive a sync batch from the SDK agent.
 
@@ -67,6 +107,10 @@ def ingest_batch(request):
     account: Account = request.user
     api_key: ApiKey = request.auth
 
+    # Verify HMAC signature before any processing
+    if not _verify_signature(request, api_key):
+        return Response({"error": "Invalid signature"}, status=status.HTTP_401_UNAUTHORIZED)
+
     try:
         batch = SyncBatch.model_validate(request.data)
     except Exception as exc:
@@ -74,12 +118,6 @@ def ingest_batch(request):
             {"error": "validation_error", "message": str(exc), "details": {}},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    # Verify HMAC signature
-    raw_key_hash = api_key.key_hash  # We have the hash, not the raw key
-    # Note: In production, signature verification requires the raw key
-    # or a pre-derived signing key stored alongside the key_hash.
-    # For now, we accept the batch and log it.
 
     # Billing status enforcement
     org = account.personal_organization
@@ -301,6 +339,7 @@ def list_keys(request):
 
 
 @api_view(["POST"])
+@throttle_classes([KeyCreateThrottle])
 def create_key(request):
     """Create a new API key (synced to pyscoped for audit trail)."""
     account: Account = request.user
@@ -337,10 +376,16 @@ def create_key(request):
     except Exception:
         pass  # Scoped is additive — Django model is the projection
 
+    # Derive and store the signing key for HMAC verification on future syncs
+    signing_key = hashlib.sha256(
+        (full_key + ":pyscoped-sync-v1").encode()
+    ).hexdigest()
+
     ApiKey.objects.create(
         id=key_id,
         account=account,
         key_hash=key_hash,
+        signing_key_hash=signing_key,
         key_prefix=full_key[:13],
         environment=req.environment.value,
         label=req.label,

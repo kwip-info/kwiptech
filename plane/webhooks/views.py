@@ -1,4 +1,8 @@
-"""Clerk webhook endpoint — receives organization and membership events."""
+"""Clerk webhook endpoint — receives organization and membership events.
+
+Rate limiting is applied as defense-in-depth; Svix signature verification
+(via ``verify_webhook``) is the primary protection against abuse.
+"""
 
 import json
 import logging
@@ -8,6 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from plane.webhooks import handlers
+from plane.webhooks.ratelimit import webhook_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +28,7 @@ EVENT_HANDLERS = {
 
 @csrf_exempt
 @require_POST
+@webhook_rate_limit(max_requests=60, window_seconds=60)
 def clerk_webhook(request):
     """Receive and dispatch Clerk webhook events."""
     from plane.webhooks.verification import verify_webhook
