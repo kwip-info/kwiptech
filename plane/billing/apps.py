@@ -6,11 +6,12 @@ class BillingConfig(AppConfig):
     name = "plane.billing"
 
     def ready(self):
-        _sync_stripe_prices()
+        from django.db.models.signals import post_migrate
+        post_migrate.connect(_sync_stripe_prices_handler, sender=self)
 
 
-def _sync_stripe_prices():
-    """Sync Stripe price IDs from env vars to the Pro plan record."""
+def _sync_stripe_prices_handler(sender, **kwargs):
+    """Sync Stripe price IDs from env vars to the Pro plan record after migrations."""
     from django.conf import settings
 
     price_pro = getattr(settings, "STRIPE_PRICE_PRO", "")
@@ -23,13 +24,10 @@ def _sync_stripe_prices():
     try:
         from plane.billing.models import Plan
 
-        updated = Plan.objects.filter(id="pro").update(
+        Plan.objects.filter(id="pro").update(
             stripe_base_price_id=price_pro,
             stripe_object_price_id=price_obj,
             stripe_principal_price_id=price_prin,
         )
-        if not updated:
-            return
     except Exception:
-        # Table may not exist yet during initial migration
         pass
