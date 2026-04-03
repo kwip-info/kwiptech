@@ -28,8 +28,11 @@ class TestClerkMiddleware:
             request.organization = org
             request.membership = membership
             if membership:
+                from plane.auth.middleware import _resolve_effective_role
+                effective_role = _resolve_effective_role(request, membership)
+                request.effective_role = effective_role
                 request.permissions = set(
-                    membership.role.permissions.values_list("id", flat=True)
+                    effective_role.permissions.values_list("id", flat=True)
                 )
 
         return self.get_response(request)

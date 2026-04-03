@@ -89,15 +89,18 @@ def _close_period(period):
 
 
 def report_metered_usage(period, org):
-    """Report overage to Stripe as metered usage records.
+    """Report overage to Stripe via Billing Meter Events.
 
-    Only reports for Pro orgs with active subscriptions and
-    configured Stripe metered price IDs.
+    Sends meter events for object and principal overage beyond
+    the plan's included allowance. Only reports for orgs with
+    active subscriptions and configured Stripe price IDs.
     """
+    import time
+
     stripe = get_stripe()
     if stripe is None:
         return
-    if not org.stripe_subscription_id:
+    if not org.stripe_customer_id:
         return
 
     plan = Plan.objects.filter(id=org.plan).first()
@@ -110,46 +113,35 @@ def report_metered_usage(period, org):
     if object_overage == 0 and principal_overage == 0:
         return
 
-    # Find subscription items for metered prices
-    try:
-        subscription = stripe.Subscription.retrieve(
-            org.stripe_subscription_id,
-            expand=["items"],
-        )
-    except stripe.StripeError:
-        logger.warning("Failed to retrieve subscription", org_id=org.id)
-        return
-
-    items_by_price = {
-        item.price.id: item.id
-        for item in subscription.items.data
-    }
+    ts = int(time.time())
 
     if object_overage > 0 and plan.stripe_object_price_id:
-        item_id = items_by_price.get(plan.stripe_object_price_id)
-        if item_id:
-            try:
-                stripe.SubscriptionItem.create_usage_record(
-                    item_id,
-                    quantity=object_overage,
-                    action="set",
-                )
-                logger.info("Reported object overage", overage=object_overage, org_id=org.id)
-            except stripe.StripeError:
-                logger.warning("Failed to report object usage", org_id=org.id)
+        try:
+            stripe.billing.MeterEvent.create(
+                event_name="object_overage",
+                payload={
+                    "value": str(object_overage),
+                    "stripe_customer_id": org.stripe_customer_id,
+                },
+                timestamp=ts,
+            )
+            logger.info("Reported object overage", overage=object_overage, org_id=org.id)
+        except stripe.StripeError:
+            logger.warning("Failed to report object usage", org_id=org.id)
 
     if principal_overage > 0 and plan.stripe_principal_price_id:
-        item_id = items_by_price.get(plan.stripe_principal_price_id)
-        if item_id:
-            try:
-                stripe.SubscriptionItem.create_usage_record(
-                    item_id,
-                    quantity=principal_overage,
-                    action="set",
-                )
-                logger.info("Reported principal overage", overage=principal_overage, org_id=org.id)
-            except stripe.StripeError:
-                logger.warning("Failed to report principal usage", org_id=org.id)
+        try:
+            stripe.billing.MeterEvent.create(
+                event_name="principal_overage",
+                payload={
+                    "value": str(principal_overage),
+                    "stripe_customer_id": org.stripe_customer_id,
+                },
+                timestamp=ts,
+            )
+            logger.info("Reported principal overage", overage=principal_overage, org_id=org.id)
+        except stripe.StripeError:
+            logger.warning("Failed to report principal usage", org_id=org.id)
 
 
 def ensure_billing_period(org, account):

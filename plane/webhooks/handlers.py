@@ -184,8 +184,12 @@ def handle_membership_deleted(data):
     except Membership.DoesNotExist:
         return
 
+    # Revoke app-level overrides in scoped before cascade delete
+    for override in membership.app_memberships.all():
+        override.revoke_in_scoped()
+
     membership.revoke_in_scoped()
-    membership.delete()
+    membership.delete()  # Cascades to app_memberships
     logger.info("Deleted membership", clerk_membership_id=clerk_membership_id)
 
 

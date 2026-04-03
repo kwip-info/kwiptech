@@ -235,6 +235,10 @@ class Organization(models.Model):
         max_length=255, null=True, blank=True,
     )
     billing_status = models.CharField(max_length=32, default="active")
+    overage_since = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the org first exceeded plan limits. NULL = within limits.",
+    )
     scoped_principal_id = models.CharField(max_length=64, null=True, blank=True)
     scoped_scope_id = models.CharField(max_length=64, null=True, blank=True)
     status = models.CharField(max_length=32, default="active")
@@ -702,4 +706,109 @@ class Membership(models.Model):
             _scoped_logger.warning(
                 "Failed to revoke scoped membership",
                 account_id=self.account_id, org_id=org.id,
+            )
+
+
+class AppMembership(models.Model):
+    """Optional role override for a member within a specific app+env context.
+
+    If no AppMembership exists for the active (membership, app, env),
+    the org-level Membership.role applies. This model only stores
+    overrides — it is never required.
+
+    When environment is NULL, the override applies to all environments
+    of that application (unless a more specific env override exists).
+    """
+
+    id = models.CharField(max_length=64, primary_key=True)
+    membership = models.ForeignKey(
+        Membership,
+        on_delete=models.CASCADE,
+        related_name="app_memberships",
+    )
+    application = models.ForeignKey(
+        "Application",
+        on_delete=models.CASCADE,
+        related_name="app_memberships",
+    )
+    environment = models.CharField(
+        max_length=10,
+        choices=[("test", "Test"), ("live", "Live")],
+        null=True,
+        blank=True,
+    )
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.PROTECT,
+        related_name="app_memberships",
+    )
+    scoped_membership_id = models.CharField(max_length=64, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "app_memberships"
+        unique_together = [("membership", "application", "environment")]
+        indexes = [
+            models.Index(fields=["application", "environment"]),
+        ]
+
+    def __str__(self):
+        env = self.environment or "all"
+        return f"{self.membership.account} in {self.application.name}/{env} as {self.role.name}"
+
+    def sync_to_scoped(self) -> None:
+        """Add this override as a ScopeMembership on the app's child scope."""
+        app = self.application
+        if not app.scoped_scope_id:
+            return
+        client = _get_scoped_client()
+        if client is None:
+            return
+        try:
+            services = _get_services(client)
+            principal = services["principals"].find_principal(
+                self.membership.account.id,
+            )
+            if principal is None:
+                return
+            scoped_role = _ROLE_MAP.get(self.role.name, ScopeRole.VIEWER)
+            sm = services["scopes"].add_member(
+                app.scoped_scope_id,
+                principal_id=PrincipalId(principal.id),
+                role=scoped_role,
+                granted_by=app.organization.scoped_principal_id or "system",
+            )
+            AppMembership.objects.filter(pk=self.pk).update(
+                scoped_membership_id=sm.id,
+            )
+            self.scoped_membership_id = sm.id
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
+            _scoped_logger.warning(
+                "Failed to sync app membership",
+                app_id=self.application_id,
+            )
+
+    def revoke_in_scoped(self, *, revoked_by: str = "system") -> None:
+        """Revoke this override from the app's pyscoped scope."""
+        app = self.application
+        if not app.scoped_scope_id or not self.scoped_membership_id:
+            return
+        client = _get_scoped_client()
+        if client is None:
+            return
+        try:
+            services = _get_services(client)
+            principal = services["principals"].find_principal(
+                self.membership.account.id,
+            )
+            if principal:
+                services["scopes"].revoke_member(
+                    app.scoped_scope_id,
+                    principal_id=PrincipalId(principal.id),
+                    revoked_by=revoked_by,
+                )
+        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
+            _scoped_logger.warning(
+                "Failed to revoke scoped app membership",
+                app_id=app.id,
             )

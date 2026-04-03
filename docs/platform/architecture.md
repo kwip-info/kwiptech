@@ -239,6 +239,26 @@ def create_application(request):
 
 ---
 
+## Permission Resolution
+
+Dashboard permissions are resolved per-request by the `ClerkAuthMiddleware`. The system supports org-level roles with optional app+env overrides.
+
+### Resolution chain
+
+1. **Org membership** — `Membership(organization, account)` → org-level `Role`
+2. **App+env override** — `AppMembership(membership, active_app, active_env)` → overridden `Role`
+3. **App-wide override** — `AppMembership(membership, active_app, env=NULL)` → overridden `Role`
+
+If no override exists, the org-level role applies. The active app and environment are read from browser cookies (`scoped_app`, `scoped_env`).
+
+The resolved role's permissions are stored in `request.permissions` as a `set[str]`. Views use the `@require_permission("perm.id")` decorator to enforce access.
+
+### Example
+
+Alice has org-level role **Developer** (can create keys, view audit). An admin adds an AppMembership override: Alice is **Viewer** on "Production App / Live". When Alice switches to Production App / Live via the header toggles, her permissions drop to Viewer-level. Switching back to Test or another app restores Developer permissions.
+
+---
+
 ## Billing Flow
 
 The billing pipeline connects SDK activity to Stripe metered billing:
@@ -272,13 +292,21 @@ SDK Agent               Platform                    Stripe
 5. **Stripe Reporting**: Overage quantities are reported to Stripe as metered usage items on the subscription.
 6. **Invoicing**: Stripe generates an invoice combining the base subscription price with metered overage charges.
 
-### Free Tier
+### Grace Period Enforcement
 
-Free tier organizations have hard limits. When `resource_counts` in a sync batch exceed `max_objects` or `max_principals`, the batch is rejected with `402`. No overage billing applies.
+All tiers use the same enforcement model:
 
-### Paid Tiers
+| State | Behavior |
+|-------|----------|
+| **Within limits** | Batch accepted. `overage_since` cleared if previously set. |
+| **Over soft limit** | Batch accepted. `overage_since` set to current time (if not already). 7-day grace period begins. Amber warning on dashboard. |
+| **Grace period expired** (7 days) | `billing_status` set to `suspended`. Batch rejected with `402`. Red banner on dashboard. |
+| **Over hard cap** (10x plan max) | Batch always rejected with `402`, regardless of grace period. |
+| **User upgrades plan** | Higher limits accommodate usage. Next sync within limits clears `overage_since`. If previously suspended, upgrading the plan resets `billing_status` to `active`. |
 
-Paid tier organizations have soft limits. Batches are always accepted (resource counts are tracked but not enforced at ingest time). Overages are calculated at period end and billed through Stripe.
+The hard cap (10x) exists to prevent runaway usage. Organizations hitting the hard cap should contact support.
+
+Paid tiers additionally report metered overage to Stripe for usage-based billing at period end.
 
 ---
 

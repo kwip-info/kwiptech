@@ -1,4 +1,4 @@
-{% if organization %}
+{% if organization and not hide_toggles %}
 {% with apps=organization.applications.all %}
 {% if apps.count > 1 %}
 <div x-data="{ open: false }" class="relative" @click.away="open = false">

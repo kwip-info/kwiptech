@@ -21,6 +21,8 @@
             routing: "path",
             path: "/sign-up",
             signInUrl: "/sign-in",
+            afterSignInUrl: "/dashboard/",
+            afterSignUpUrl: "/dashboard/",
         });
         clerk.addListener(function () {
             if (clerk.user) {

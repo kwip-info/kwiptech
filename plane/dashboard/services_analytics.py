@@ -34,32 +34,44 @@ def _account_ids_for_org(organization):
     return list(organization.memberships.values_list("account_id", flat=True))
 
 
+def _account_ids_filtered(organization, application=None, environment=None):
+    """Account IDs narrowed by app/env via API key lookup."""
+    all_ids = set(organization.memberships.values_list("account_id", flat=True))
+    if not application and not environment:
+        return list(all_ids)
+    key_qs = ApiKey.objects.filter(account_id__in=all_ids)
+    if application:
+        key_qs = key_qs.filter(application=application)
+    if environment:
+        key_qs = key_qs.filter(environment=environment)
+    return list(key_qs.values_list("account_id", flat=True).distinct())
+
+
 # -- Dashboard home --------------------------------------------------------
 
-def get_recent_activity(organization, limit=10):
-    """Last N scoped audit entries for the activity feed (most recent first)."""
-    try:
-        from plane.dashboard.scoped import get_client
-        from scoped.contrib._base import build_services
-        client = get_client()
-        services = build_services(client._backend)
-        return services["audit_query"].query(limit=limit, order_by="-sequence")
-    except Exception:  # Graceful degradation — scoped may be unavailable
-        logger.warning("Failed to fetch recent activity")
+def get_recent_activity(organization, limit=10, application=None, environment=None):
+    """Last N synced audit entries for the activity feed (most recent first)."""
+    if organization is None:
         return []
+    account_ids = _account_ids_filtered(organization, application, environment)
+    return list(
+        SyncedAuditEntry.objects
+        .filter(account_id__in=account_ids)
+        .order_by("-received_at")[:limit]
+    )
 
 
-def get_audit_count_today(organization):
-    """Total scoped audit entries recorded today."""
-    try:
-        from plane.dashboard.scoped import get_client
-        from scoped.contrib._base import build_services
-        client = get_client()
-        services = build_services(client._backend)
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        return services["audit_query"].count(since=today_start)
-    except Exception:  # Graceful degradation — scoped may be unavailable
+def get_audit_count_today(organization, application=None, environment=None):
+    """Total synced audit entries received today."""
+    if organization is None:
         return 0
+    account_ids = _account_ids_filtered(organization, application, environment)
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        SyncedAuditEntry.objects
+        .filter(account_id__in=account_ids, received_at__gte=today_start)
+        .count()
+    )
 
 
 def get_env_breakdown(application):
@@ -74,38 +86,42 @@ def get_env_breakdown(application):
     return result
 
 
-def get_key_activity_series(application, days=7):
-    """Daily key operation counts from scoped audit trail."""
+def get_activity_series(organization, days=7, application=None, environment=None):
+    """Daily operation counts from synced audit entries.
+
+    Shows all SDK activity synced to the platform, grouped by day.
+    """
     start, labels = _date_range(days)
     data = {label: 0 for label in labels}
 
-    try:
-        from plane.dashboard.scoped import get_client
-        from scoped.contrib._base import build_services
-        client = get_client()
-        services = build_services(client._backend)
-        since = timezone.now() - timedelta(days=days)
-        entries = services["audit_query"].query(
-            target_type="api_key", since=since, limit=500,
-        )
-        for entry in entries:
-            day = entry.timestamp.date().isoformat()
-            if day in data:
-                data[day] += 1
-    except Exception:  # Graceful degradation — scoped may be unavailable
-        pass
+    if organization is None:
+        return {"labels": labels, "data": [data[d] for d in labels]}
+
+    account_ids = _account_ids_filtered(organization, application, environment)
+    rows = (
+        SyncedAuditEntry.objects
+        .filter(account_id__in=account_ids, received_at__date__gte=start)
+        .annotate(day=TruncDate("received_at"))
+        .values("day")
+        .annotate(count=Count("id"))
+    )
+    for row in rows:
+        day_str = row["day"].isoformat()
+        if day_str in data:
+            data[day_str] = row["count"]
 
     return {"labels": labels, "data": [data[d] for d in labels]}
 
 
 # -- Key analytics ---------------------------------------------------------
 
-def resolve_key_queryset(organization, app_id=None, key_ids=None):
+def resolve_key_queryset(organization, app_id=None, key_ids=None, environment=None):
     """Build an ApiKey queryset from filter params.
 
     app_id="all" or None → all keys across the org.
     app_id=<id>          → keys for that specific application.
     key_ids=[id, ...]    → further narrow to specific keys.
+    environment="test"|"live"|None → filter by environment.
     """
     if app_id and app_id != "all":
         qs = ApiKey.objects.filter(
@@ -114,6 +130,9 @@ def resolve_key_queryset(organization, app_id=None, key_ids=None):
         )
     else:
         qs = ApiKey.objects.filter(application__organization=organization)
+
+    if environment:
+        qs = qs.filter(environment=environment)
 
     if key_ids:
         qs = qs.filter(id__in=key_ids)
@@ -185,37 +204,29 @@ def get_key_recency_buckets(qs):
 
 
 def get_key_creation_series(qs, days=30):
-    """Daily key creation counts, split by environment."""
+    """Daily key creation counts."""
     start, labels = _date_range(days)
-    test_data = {label: 0 for label in labels}
-    live_data = {label: 0 for label in labels}
+    data = {label: 0 for label in labels}
 
     rows = (
         qs.filter(created_at__date__gte=start)
         .annotate(day=TruncDate("created_at"))
-        .values("day", "environment")
+        .values("day")
         .annotate(count=Count("id"))
     )
     for row in rows:
         day_str = row["day"].isoformat()
-        if day_str in test_data:
-            if row["environment"] == "test":
-                test_data[day_str] = row["count"]
-            else:
-                live_data[day_str] = row["count"]
+        if day_str in data:
+            data[day_str] = row["count"]
 
-    return {
-        "labels": labels,
-        "test": [test_data[d] for d in labels],
-        "live": [live_data[d] for d in labels],
-    }
+    return {"labels": labels, "data": [data[d] for d in labels]}
 
 
 # -- Sync status -----------------------------------------------------------
 
-def get_sync_health(organization):
+def get_sync_health(organization, application=None, environment=None):
     """Connection status, last batch details, SDK version."""
-    account_ids = _account_ids_for_org(organization)
+    account_ids = _account_ids_filtered(organization, application, environment)
     batch = (
         SyncBatchRecord.objects
         .filter(account_id__in=account_ids)
@@ -255,10 +266,10 @@ def get_sync_health(organization):
     }
 
 
-def get_batch_throughput_series(organization, days=30):
+def get_batch_throughput_series(organization, days=30, application=None, environment=None):
     """Daily batch entry counts for throughput line chart."""
     start, labels = _date_range(days)
-    account_ids = _account_ids_for_org(organization)
+    account_ids = _account_ids_filtered(organization, application, environment)
 
     data = {label: 0 for label in labels}
     rows = (
@@ -276,9 +287,9 @@ def get_batch_throughput_series(organization, days=30):
     return {"labels": labels, "data": [data[d] for d in labels]}
 
 
-def get_batch_history(organization, page=1, per_page=25):
+def get_batch_history(organization, page=1, per_page=25, application=None, environment=None):
     """Paginated batch records, most recent first."""
-    account_ids = _account_ids_for_org(organization)
+    account_ids = _account_ids_filtered(organization, application, environment)
     qs = (
         SyncBatchRecord.objects
         .filter(account_id__in=account_ids)
@@ -288,9 +299,9 @@ def get_batch_history(organization, page=1, per_page=25):
     return paginator.get_page(page)
 
 
-def get_chain_integrity(organization):
+def get_chain_integrity(organization, application=None, environment=None):
     """Check sequence continuity in synced audit entries."""
-    account_ids = _account_ids_for_org(organization)
+    account_ids = _account_ids_filtered(organization, application, environment)
     entries = (
         SyncedAuditEntry.objects
         .filter(account_id__in=account_ids)
@@ -324,10 +335,10 @@ def get_chain_integrity(organization):
 
 # -- Usage trends ----------------------------------------------------------
 
-def get_resource_trend_series(organization, days=30):
+def get_resource_trend_series(organization, days=30, application=None, environment=None):
     """Daily UsageSnapshot values for area chart."""
     start, labels = _date_range(days)
-    account_ids = _account_ids_for_org(organization)
+    account_ids = _account_ids_filtered(organization, application, environment)
 
     objects_data = {label: 0 for label in labels}
     principals_data = {label: 0 for label in labels}
@@ -353,10 +364,10 @@ def get_resource_trend_series(organization, days=30):
     }
 
 
-def get_audit_volume_series(organization, days=30):
+def get_audit_volume_series(organization, days=30, application=None, environment=None):
     """Daily synced audit entry counts for bar chart."""
     start, labels = _date_range(days)
-    account_ids = _account_ids_for_org(organization)
+    account_ids = _account_ids_filtered(organization, application, environment)
 
     data = {label: 0 for label in labels}
     rows = (

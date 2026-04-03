@@ -70,11 +70,10 @@ def get_keys(application, environment, show_revoked=False, page=1, per_page=25):
     return paginator.get_page(page)
 
 
-def get_sync_status(organization):
+def get_sync_status(organization, application=None, environment=None):
     """Return the latest sync info, or None if no syncs received."""
-    account_ids = list(
-        organization.memberships.values_list("account_id", flat=True)
-    )
+    from plane.dashboard.services_analytics import _account_ids_filtered
+    account_ids = _account_ids_filtered(organization, application, environment)
     batch = (
         SyncBatchRecord.objects
         .filter(account_id__in=account_ids)
@@ -95,11 +94,10 @@ def get_sync_status(organization):
     }
 
 
-def get_usage_summary(organization):
+def get_usage_summary(organization, application=None, environment=None):
     """Return the latest usage snapshot, or None."""
-    account_ids = list(
-        organization.memberships.values_list("account_id", flat=True)
-    )
+    from plane.dashboard.services_analytics import _account_ids_filtered
+    account_ids = _account_ids_filtered(organization, application, environment)
     return (
         UsageSnapshot.objects
         .filter(account_id__in=account_ids)
@@ -265,62 +263,80 @@ def get_key_audit_trail(api_key):
         return []
 
 
-def get_audit_trail(filters=None, page=1, per_page=25):
-    """Query the scoped audit trail with optional filters.
+def get_audit_trail(
+    organization, filters=None, page=1, per_page=25, sort="-sequence",
+    application=None, environment=None,
+):
+    """Query synced audit entries with filters.
 
     Supported filters: action, target_type, actor_id, search, since, until.
-    Returns list of entries, most recent first.
+    application/environment: narrow to entries from keys matching that app/env.
+    sort: "sequence", "-sequence".
+    Returns (entries, total_count) tuple.
     """
-    from scoped.types import ActionType
+    from django.db.models import Q
 
     filters = filters or {}
-    try:
-        from plane.dashboard.scoped import get_client
-        client = get_client()
+    if organization is None:
+        return [], 0
 
-        query_kwargs = {
-            "limit": per_page,
-            "offset": (page - 1) * per_page,
-            "order_by": "-sequence",
-        }
+    # Start with all account IDs in the org
+    account_ids = set(
+        organization.memberships.values_list("account_id", flat=True)
+    )
 
-        action_str = filters.get("action")
-        if action_str:
-            try:
-                query_kwargs["action"] = ActionType(action_str)
-            except ValueError:
-                pass
+    # Narrow to accounts that have keys matching the app/env filter
+    if application or environment:
+        key_qs = ApiKey.objects.filter(account_id__in=account_ids)
+        if application:
+            key_qs = key_qs.filter(application=application)
+        if environment:
+            key_qs = key_qs.filter(environment=environment)
+        account_ids = set(key_qs.values_list("account_id", flat=True))
 
-        for key in ("target_type", "actor_id"):
-            if filters.get(key):
-                query_kwargs[key] = filters[key]
+    qs = SyncedAuditEntry.objects.filter(account_id__in=account_ids)
 
+    # Apply filters
+    if filters.get("action"):
+        qs = qs.filter(action=filters["action"])
+    if filters.get("target_type"):
+        qs = qs.filter(target_type=filters["target_type"])
+    if filters.get("actor_id"):
+        qs = qs.filter(actor_id=filters["actor_id"])
+    if filters.get("since"):
         from datetime import datetime as dt
-        for key in ("since", "until"):
-            date_str = filters.get(key)
-            if date_str:
-                try:
-                    query_kwargs[key] = dt.fromisoformat(date_str)
-                except ValueError:
-                    pass
+        try:
+            qs = qs.filter(timestamp__gte=dt.fromisoformat(filters["since"]))
+        except ValueError:
+            pass
+    if filters.get("until"):
+        from datetime import datetime as dt
+        try:
+            qs = qs.filter(timestamp__lte=dt.fromisoformat(filters["until"]))
+        except ValueError:
+            pass
 
-        entries = client.audit.query(**query_kwargs)
+    # Text search
+    search = filters.get("search", "").strip()
+    if search:
+        qs = qs.filter(
+            Q(action__icontains=search)
+            | Q(target_type__icontains=search)
+            | Q(target_id__icontains=search)
+            | Q(actor_id__icontains=search)
+        )
 
-        # Client-side text search
-        search = filters.get("search", "").lower()
-        if search:
-            entries = [
-                e for e in entries
-                if search in str(e.action).lower()
-                or search in e.target_type.lower()
-                or search in e.target_id.lower()
-                or search in e.actor_id.lower()
-            ]
+    # Sort
+    if sort == "sequence":
+        qs = qs.order_by("sequence", "account_id")
+    else:
+        qs = qs.order_by("-sequence", "account_id")
 
-        return entries
-    except Exception:  # Graceful degradation — scoped may be unavailable
-        logger.warning("Failed to query audit trail")
-        return []
+    total = qs.count()
+    start = (page - 1) * per_page
+    entries = list(qs[start:start + per_page])
+
+    return entries, total
 
 
 def resolve_key_secret(ref_token):

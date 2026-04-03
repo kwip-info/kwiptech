@@ -25,7 +25,7 @@ class AuditTrailPageTest(TestCase):
 
     def test_filter_params_preserved(self):
         response = self.client.get("/dashboard/audit/?action=create")
-        self.assertContains(response, 'selected')
+        assert response.context["filters"]["action"] == "create"
 
     def test_context_has_entries(self):
         response = self.client.get("/dashboard/audit/")

@@ -139,52 +139,77 @@ def ingest_batch(request):
             accepted=False,
             server_sequence=0,
             server_chain_hash="",
-            message="Account suspended — update payment method to resume sync",
+            message="Account suspended — upgrade your plan or contact support to resume sync",
             errors=["billing_suspended"],
         )
         return Response(ack.model_dump(mode="json"), status=status.HTTP_402_PAYMENT_REQUIRED)
 
     # Plan limit enforcement
+    GRACE_PERIOD_DAYS = 7
     if org:
+        from datetime import timedelta
+        from django.utils import timezone as tz
         from plane.billing.models import Plan as PlanModel
         plan_obj = PlanModel.objects.filter(id=org.plan).first()
         if plan_obj:
             counts = batch.resource_counts
-            errors = []
+            has_overage_pricing = bool(plan_obj.overage_per_object_cents or plan_obj.stripe_object_price_id)
+            over_objects = counts.active_objects > plan_obj.included_objects
+            over_principals = counts.active_principals > plan_obj.included_principals
 
-            if plan_obj.overage_per_object_cents == 0:
-                # Free tier — hard limits, no overage allowed
-                if counts.active_objects > plan_obj.max_objects:
-                    errors.append(
-                        f"Object limit exceeded: {counts.active_objects}/{plan_obj.max_objects}"
-                    )
-                if counts.active_principals > plan_obj.max_principals:
-                    errors.append(
-                        f"Principal limit exceeded: {counts.active_principals}/{plan_obj.max_principals}"
-                    )
-            else:
-                # Paid tier — hard ceiling at 10x max to prevent bill shock
-                hard_object_cap = plan_obj.max_objects * MAX_BATCH_MULTIPLIER
-                hard_principal_cap = plan_obj.max_principals * MAX_BATCH_MULTIPLIER
-                if counts.active_objects > hard_object_cap:
-                    errors.append(
-                        f"Object hard cap exceeded: {counts.active_objects}/{hard_object_cap} — contact support to increase"
-                    )
-                if counts.active_principals > hard_principal_cap:
-                    errors.append(
-                        f"Principal hard cap exceeded: {counts.active_principals}/{hard_principal_cap} — contact support to increase"
-                    )
-
-            if errors:
+            # Hard cap — reject if over absolute max (applies to all tiers)
+            hard_object_cap = plan_obj.max_objects * MAX_BATCH_MULTIPLIER
+            hard_principal_cap = plan_obj.max_principals * MAX_BATCH_MULTIPLIER
+            hard_errors = []
+            if counts.active_objects > hard_object_cap:
+                hard_errors.append(
+                    f"Object hard cap exceeded: {counts.active_objects}/{hard_object_cap} — contact support"
+                )
+            if counts.active_principals > hard_principal_cap:
+                hard_errors.append(
+                    f"Principal hard cap exceeded: {counts.active_principals}/{hard_principal_cap} — contact support"
+                )
+            if hard_errors:
                 ack = SyncBatchAck(
                     batch_id=batch.batch_id,
                     accepted=False,
                     server_sequence=0,
                     server_chain_hash="",
-                    message="Plan limits exceeded",
-                    errors=errors,
+                    message="Hard cap exceeded",
+                    errors=hard_errors,
                 )
                 return Response(ack.model_dump(mode="json"), status=status.HTTP_402_PAYMENT_REQUIRED)
+
+            if has_overage_pricing:
+                # Paid tier — accept overage, Stripe meters it
+                # Clear grace period since they're paying for overage
+                if org.overage_since is not None:
+                    org.overage_since = None
+                    org.save(update_fields=["overage_since"])
+            else:
+                # Free tier — grace period model
+                if over_objects or over_principals:
+                    if org.overage_since is None:
+                        org.overage_since = tz.now()
+                        org.save(update_fields=["overage_since"])
+
+                    grace_deadline = org.overage_since + timedelta(days=GRACE_PERIOD_DAYS)
+                    if tz.now() > grace_deadline:
+                        org.billing_status = "suspended"
+                        org.save(update_fields=["billing_status"])
+                        ack = SyncBatchAck(
+                            batch_id=batch.batch_id,
+                            accepted=False,
+                            server_sequence=0,
+                            server_chain_hash="",
+                            message=f"Free tier limits exceeded for {GRACE_PERIOD_DAYS}+ days — upgrade to continue syncing",
+                            errors=["grace_period_expired"],
+                        )
+                        return Response(ack.model_dump(mode="json"), status=status.HTTP_402_PAYMENT_REQUIRED)
+                else:
+                    if org.overage_since is not None:
+                        org.overage_since = None
+                        org.save(update_fields=["overage_since"])
 
         # Sync interval enforcement
         if plan_obj:

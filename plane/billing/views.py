@@ -105,11 +105,39 @@ def billing_overview(request):
         .first()
     ) if org else None
 
+    stripe_configured = get_stripe() is not None
+    pro_available = stripe_configured and Plan.objects.filter(
+        id="pro", stripe_base_price_id__isnull=False,
+    ).exclude(stripe_base_price_id="").exists()
+
+    # Compute estimated cost for current period
+    estimate = None
+    if plan_obj and period:
+        base_cents = plan_obj.price_cents_monthly
+        obj_overage = max(0, period.peak_objects - plan_obj.included_objects)
+        prin_overage = max(0, period.peak_principals - plan_obj.included_principals)
+        obj_cost_cents = obj_overage * plan_obj.overage_per_object_cents
+        prin_cost_cents = prin_overage * plan_obj.overage_per_principal_cents
+        total_cents = base_cents + obj_cost_cents + prin_cost_cents
+        estimate = {
+            "base": base_cents / 100,
+            "object_overage": obj_overage,
+            "object_cost": obj_cost_cents / 100,
+            "principal_overage": prin_overage,
+            "principal_cost": prin_cost_cents / 100,
+            "total": total_cents / 100,
+            "has_overage": obj_overage > 0 or prin_overage > 0,
+        }
+
     return render(request, "dashboard/billing.html", {
         "page_title": "Billing",
         "page_subtitle": "Plan and usage",
+        "hide_toggles": True,
         "plan": plan_obj,
         "plan_id": plan_id,
         "period": period,
         "org": org,
+        "stripe_configured": stripe_configured,
+        "pro_available": pro_available,
+        "estimate": estimate,
     })

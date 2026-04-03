@@ -39,7 +39,8 @@ A billable entity that owns applications, keys, roles, and members. Can be a per
 | `plan`                     | `ForeignKey`   | -> Plan                   | Current billing plan.                                |
 | `stripe_customer_id`       | `CharField`    | Nullable                  | Stripe Customer ID (`cus_...`).                      |
 | `stripe_subscription_id`   | `CharField`    | Nullable                  | Stripe Subscription ID (`sub_...`).                  |
-| `billing_status`           | `CharField`    | Default `active`          | `active`, `past_due`, `canceled`, `trialing`.        |
+| `billing_status`           | `CharField`    | Default `active`          | `active`, `past_due`, `suspended`.                   |
+| `overage_since`            | `DateTimeField`| Nullable                  | When usage first exceeded plan limits. NULL = within limits. Cleared on next sync within limits. |
 | `scoped_principal_id`      | `CharField`    | Nullable                  | The pyscoped principal representing this org.        |
 | `scoped_scope_id`          | `CharField`    | Nullable                  | The pyscoped scope for this org's resources.         |
 | `status`                   | `CharField`    | Default `active`          | `active`, `suspended`, `archived`.                   |
@@ -203,6 +204,32 @@ Links an account to an organization with a specific role.
 
 **Constraints:**
 - `unique_together: (organization, account)` -- An account can only be a member of an organization once.
+
+---
+
+## AppMembership
+
+Optional role override for a member within a specific application and environment. If no AppMembership exists, the org-level Membership role applies.
+
+| Field                  | Type           | Constraints                                  | Description                                           |
+|------------------------|----------------|----------------------------------------------|-------------------------------------------------------|
+| `id`                   | `CharField`    | PK                                           | Auto-generated UUID.                                  |
+| `membership`           | `ForeignKey`   | -> Membership, CASCADE                       | The org-level membership being overridden.             |
+| `application`          | `ForeignKey`   | -> Application, CASCADE                      | The application this override applies to.              |
+| `environment`          | `CharField`    | Nullable, choices: `test`, `live`            | The environment. `NULL` = all environments of the app. |
+| `role`                 | `ForeignKey`   | -> Role, PROTECT                             | The overridden role for this app+env.                  |
+| `scoped_membership_id` | `CharField`   | Nullable                                     | The pyscoped membership on the app's child scope.      |
+| `created_at`           | `DateTimeField`| Auto                                         | Timestamp of override creation.                        |
+
+**Constraints:**
+- `unique_together: (membership, application, environment)` -- One override per member per app+env.
+
+**Resolution order:** When resolving a member's effective role for the current app+env:
+1. Exact match: `AppMembership(membership, app, env)` -- most specific
+2. App-wide: `AppMembership(membership, app, env=NULL)` -- applies to all envs
+3. Fallback: `Membership.role` -- the org-level default
+
+**Cascade behavior:** Deleting a Membership cascades to all its AppMembership rows. Deleting an Application cascades to overrides for that app. Roles used as overrides are protected from deletion.
 
 ---
 

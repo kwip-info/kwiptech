@@ -1,3 +1,4 @@
+{% if not hide_toggles %}
 {% load dashboard_tags %}
 {% active_env as env %}
 <div x-data="{ env: '{{ env }}' }" class="flex items-center gap-1 rounded-lg bg-gray-100 p-0.5">
@@ -20,3 +21,4 @@
         </button>
     </form>
 </div>
+{% endif %}

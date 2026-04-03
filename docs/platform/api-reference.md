@@ -119,7 +119,7 @@ Ingest a batch of audit entries produced by the SDK agent.
 | Status | Condition                      | Detail                                                                 |
 |--------|--------------------------------|------------------------------------------------------------------------|
 | `400`  | Validation failure             | Missing fields, sequence gap, content hash mismatch, invalid signature.|
-| `402`  | Plan limits exceeded           | Free tier: hard reject. Paid tier: soft limit with `overage_allowed`.  |
+| `402`  | Plan limits exceeded           | Grace period expired or hard cap exceeded. See limit enforcement below.|
 | `429`  | Sync interval too short        | Time since last batch is less than `min_sync_interval_seconds`.        |
 
 #### Deduplication
@@ -128,8 +128,15 @@ The platform deduplicates by `batch_id`. If a batch with the same `batch_id` has
 
 #### Plan Limit Enforcement
 
-- **Free tier** (`free`): Hard limits. When `resource_counts` exceed `max_objects` or `max_principals`, the batch is rejected with `402`. The SDK must reduce resource usage before syncing again.
-- **Paid tiers** (`starter`, `team`, `enterprise`): Soft limits. Batches are accepted even if counts exceed included amounts, and the overage is tracked for metered billing at the end of the period.
+The platform uses a **grace period model** for limit enforcement:
+
+1. **Within limits** — batch accepted, no warnings.
+2. **Over soft limit (plan max), under hard cap (10x plan max)** — batch accepted. The organization's `overage_since` timestamp is set, and a **7-day grace period** begins. A warning banner appears on the dashboard prompting an upgrade.
+3. **Still over after 7 days** — organization `billing_status` is set to `suspended`. All subsequent batches are rejected with `402` until the org upgrades to a plan that accommodates their usage.
+4. **Over hard cap (10x plan max)** — batch always rejected with `402` regardless of grace period. Contact support to increase.
+5. **Back within limits** — `overage_since` is cleared on the next sync that reports usage within plan limits. Grace period resets.
+
+This applies to all tiers. The only difference is the plan's `max_objects` and `max_principals` values. Paid tiers also report metered overage to Stripe for usage-based billing.
 
 #### Sync Interval
 

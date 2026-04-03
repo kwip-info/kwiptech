@@ -158,19 +158,16 @@ function syncClerkSession(clerk) {
 // Keep session cookie in sync and mount UserButton
 onClerkReady(function (clerk) {
     syncClerkSession(clerk).then(function () {
-        // If user is authenticated but page was rendered without auth context,
-        // redirect to dashboard (covers landing page after sign-in completion)
-        if (clerk.user && !document.querySelector("[data-clerk-authed]")) {
-            window.location.replace("/dashboard/");
-            return;
+        // After cookie sync, reload the page once so the server-rendered
+        // navbar reflects auth state (shows Dashboard button vs Sign in).
+        // Only reload if auth state changed since server render.
+        var serverAuthed = !!document.querySelector("[data-clerk-authed]");
+        if (clerk.user && !serverAuthed) {
+            window.location.reload();
         }
     });
     clerk.addListener(function () {
-        syncClerkSession(clerk).then(function () {
-            if (clerk.user && !document.querySelector("[data-clerk-authed]")) {
-                window.location.replace("/dashboard/");
-            }
-        });
+        syncClerkSession(clerk);
     });
 
     var el = document.getElementById("clerk-user-button");

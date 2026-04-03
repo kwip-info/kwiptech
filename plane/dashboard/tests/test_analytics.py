@@ -25,13 +25,13 @@ class DashboardHomeTest(TestCase):
         response = self.client.get("/dashboard/")
         self.assertContains(response, "Recent Activity")
 
-    def test_has_env_breakdown_chart(self):
+    def test_has_key_status_chart(self):
         response = self.client.get("/dashboard/")
-        self.assertContains(response, "Keys by Environment")
+        self.assertContains(response, "Key Status")
 
-    def test_has_key_activity_chart(self):
+    def test_has_activity_chart(self):
         response = self.client.get("/dashboard/")
-        self.assertContains(response, "Key Operations")
+        self.assertContains(response, "SDK Activity")
 
     def test_has_resource_trends_chart(self):
         response = self.client.get("/dashboard/")
@@ -79,7 +79,8 @@ class KeyAnalyticsPageTest(TestCase):
     def test_shows_correct_counts_with_keys(self):
         from plane.dashboard.services import create_api_key
         create_api_key(self.account, self.app, "test", "k1")
-        create_api_key(self.account, self.app, "live", "k2")
+        create_api_key(self.account, self.app, "test", "k2")
+        # Default env is "test", so both keys should appear
         response = self.client.get("/dashboard/keys/analytics/")
         self.assertContains(response, ">2<")  # total
         self.assertContains(response, ">2<")  # active
@@ -114,14 +115,11 @@ class KeyAnalyticsFilterTest(TestCase):
         self.account = Account.objects.get(id="test_account")
         self.app = Application.objects.get(id="test_app")
 
-    def test_all_apps_filter(self):
-        response = self.client.get("/dashboard/keys/analytics/?app=all")
+    def test_default_uses_active_app(self):
+        response = self.client.get("/dashboard/keys/analytics/")
         assert response.status_code == 200
-        self.assertContains(response, "All applications")
-
-    def test_specific_app_filter(self):
-        response = self.client.get(f"/dashboard/keys/analytics/?app={self.app.id}")
-        assert response.status_code == 200
+        # Uses global app toggle (default app)
+        self.assertContains(response, "Test App")
 
     def test_key_filter(self):
         from plane.dashboard.services import create_api_key
@@ -129,14 +127,6 @@ class KeyAnalyticsFilterTest(TestCase):
         response = self.client.get(f"/dashboard/keys/analytics/?keys={key.id}")
         assert response.status_code == 200
         self.assertContains(response, "1 keys selected")
-
-    def test_combined_filters(self):
-        from plane.dashboard.services import create_api_key
-        key, _ = create_api_key(self.account, self.app, "test", "combo")
-        response = self.client.get(
-            f"/dashboard/keys/analytics/?app=all&keys={key.id}"
-        )
-        assert response.status_code == 200
 
 
 class KeyDetailUsageSectionTest(TestCase):

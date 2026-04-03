@@ -81,7 +81,8 @@ def _handle_checkout_completed(session):
         org.plan = "pro"
         org.stripe_subscription_id = subscription_id
         org.billing_status = "active"
-        org.save(update_fields=["plan", "stripe_subscription_id", "billing_status"])
+        org.overage_since = None  # Clear grace period on upgrade
+        org.save(update_fields=["plan", "stripe_subscription_id", "billing_status", "overage_since"])
         _audit_billing_change(org, "plan_upgrade", {"plan": old_plan}, {"plan": "pro"})
         logger.info("Activated Pro plan", org_id=org.id)
     except Organization.DoesNotExist:
@@ -159,7 +160,8 @@ def _handle_invoice_paid(invoice):
         if org.billing_status in ("past_due", "suspended"):
             old_status = org.billing_status
             org.billing_status = "active"
-            org.save(update_fields=["billing_status"])
+            org.overage_since = None  # Clear grace period on payment
+            org.save(update_fields=["billing_status", "overage_since"])
             _audit_billing_change(org, "reactivated", {"billing_status": old_status}, {"billing_status": "active"})
             logger.info("Reactivated org after payment", org_id=org.id)
     except Organization.DoesNotExist:
@@ -171,5 +173,5 @@ EVENT_HANDLERS = {
     "customer.subscription.updated": _handle_subscription_updated,
     "customer.subscription.deleted": _handle_subscription_deleted,
     "invoice.payment_failed": _handle_invoice_payment_failed,
-    "invoice.paid": _handle_invoice_paid,
+    "invoice.payment_succeeded": _handle_invoice_paid,
 }

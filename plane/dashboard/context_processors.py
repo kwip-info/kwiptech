@@ -10,5 +10,6 @@ def clerk_settings(request):
         "clerk_user": getattr(request, "clerk_user", None),
         "organization": getattr(request, "organization", None),
         "membership": getattr(request, "membership", None),
+        "effective_role": getattr(request, "effective_role", None),
         "permissions": getattr(request, "permissions", set()),
     }

@@ -110,6 +110,65 @@ def _resolve_org_context(request, claims):
     )
     if membership:
         request.membership = membership
+        effective_role = _resolve_effective_role(request, membership)
+        request.effective_role = effective_role
         request.permissions = set(
-            membership.role.permissions.values_list("id", flat=True)
+            effective_role.permissions.values_list("id", flat=True)
         )
+
+
+def _resolve_effective_role(request, membership):
+    """Return the effective role considering app+env overrides.
+
+    Resolution order:
+    1. Exact match: (membership, active_app, active_env)
+    2. App-wide:    (membership, active_app, env=NULL)
+    3. Org-level:   membership.role  (fallback)
+    """
+    from plane.core.models import AppMembership, Application
+
+    org = request.organization
+    if org is None:
+        return membership.role
+
+    # Read active app from cookie
+    app_id = request.COOKIES.get("scoped_app")
+    active_app = None
+    if app_id:
+        try:
+            active_app = org.applications.get(id=app_id)
+        except Application.DoesNotExist:
+            pass
+    if active_app is None:
+        active_app = org.applications.filter(is_default=True).first()
+
+    if active_app is None:
+        return membership.role
+
+    # Read active env from cookie
+    active_env = request.COOKIES.get("scoped_env", "test")
+    if active_env not in ("test", "live"):
+        active_env = "test"
+
+    # Step 1: exact (app, env) override
+    override = (
+        AppMembership.objects
+        .filter(membership=membership, application=active_app, environment=active_env)
+        .select_related("role")
+        .first()
+    )
+    if override:
+        return override.role
+
+    # Step 2: app-wide override (env=NULL)
+    override = (
+        AppMembership.objects
+        .filter(membership=membership, application=active_app, environment__isnull=True)
+        .select_related("role")
+        .first()
+    )
+    if override:
+        return override.role
+
+    # Step 3: fallback to org-level
+    return membership.role

@@ -28,6 +28,7 @@ def roles(request):
     return render(request, "dashboard/roles.html", {
         "page_title": "Roles",
         "page_subtitle": "Manage access control",
+        "hide_toggles": True,
         "roles": role_list,
     })
 
@@ -56,6 +57,7 @@ def role_editor(request, role_id=None):
             return render(request, "dashboard/role_editor.html", {
                 "page_title": "New Role" if role is None else role.name,
                 "page_subtitle": "Edit permissions",
+                "hide_toggles": True,
                 "role": role,
                 "categories": categories,
                 "selected_perms": set(request.POST.getlist("permissions")),
@@ -93,6 +95,7 @@ def role_editor(request, role_id=None):
     return render(request, "dashboard/role_editor.html", {
         "page_title": role.name if role else "New Role",
         "page_subtitle": "Edit permissions",
+        "hide_toggles": True,
         "role": role,
         "categories": categories,
         "selected_perms": selected_perms,
@@ -109,10 +112,10 @@ def role_delete(request, role_id):
         messages.error(request, "Default roles cannot be deleted.")
         return redirect("dashboard:roles")
 
-    if role.memberships.exists():
+    if role.memberships.exists() or role.app_memberships.exists():
         messages.error(
             request,
-            f"Role \"{role.name}\" has active members. Reassign them first.",
+            f"Role \"{role.name}\" has active members or app overrides. Reassign them first.",
         )
         return redirect("dashboard:roles")
 

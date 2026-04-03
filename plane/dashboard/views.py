@@ -27,23 +27,26 @@ def index(request):
     org = request.organization
     app = services.get_active_app(request)
     env = services.get_active_env(request)
+    filt = {"application": app, "environment": env}
+
     ctx = {
         "page_title": "Dashboard",
-        "page_subtitle": "Overview",
+        "page_subtitle": f"{app.name} \u00b7 {env.capitalize()}" if app else "Overview",
         "active_env": env,
         "active_app": app,
-        "sync_status": services.get_sync_status(org) if org else None,
-        "usage_summary": services.get_usage_summary(org) if org else None,
+        "sync_status": services.get_sync_status(org, **filt) if org else None,
+        "usage_summary": services.get_usage_summary(org, **filt) if org else None,
         "onboarding": services.get_onboarding_status(org) if org else None,
-        "recent_activity": analytics.get_recent_activity(org) if org else [],
-        "audit_count_today": analytics.get_audit_count_today(org) if org else 0,
-        "env_breakdown": analytics.to_json(analytics.get_env_breakdown(app)),
-        "key_activity": analytics.to_json(analytics.get_key_activity_series(app)),
+        "recent_activity": analytics.get_recent_activity(org, **filt) if org else [],
+        "audit_count_today": analytics.get_audit_count_today(org, **filt) if org else 0,
+        "activity_series": analytics.to_json(
+            analytics.get_activity_series(org, **filt)
+        ),
         "resource_trends": analytics.to_json(
-            analytics.get_resource_trend_series(org)
+            analytics.get_resource_trend_series(org, **filt)
         ) if org else "null",
         "audit_volume": analytics.to_json(
-            analytics.get_audit_volume_series(org)
+            analytics.get_audit_volume_series(org, **filt)
         ) if org else "null",
     }
     if app:
@@ -135,31 +138,28 @@ def rotate_key(request, key_id):
     return redirect("dashboard:keys")
 
 
-AUDIT_ACTION_CHOICES = [
-    ("create", "create"),
-    ("update", "update"),
-    ("delete", "delete"),
-    ("revoke", "revoke"),
-    ("register", "register"),
-    ("scope_create", "scope_create"),
-    ("scope_modify", "scope_modify"),
-    ("scope_dissolve", "scope_dissolve"),
-    ("membership_change", "membership_change"),
-    ("rule_change", "rule_change"),
-    ("secret_create", "secret_create"),
-    ("secret_ref_grant", "secret_ref_grant"),
-    ("secret_revoke", "secret_revoke"),
-]
+def _audit_choices(organization):
+    """Build action and target_type choices from actual synced data."""
+    from plane.core.models import SyncedAuditEntry
 
-AUDIT_TARGET_CHOICES = [
-    ("api_key", "api_key"),
-    ("application", "application"),
-    ("role", "role"),
-    ("principal", "principal"),
-    ("scope", "scope"),
-    ("secret", "secret"),
-    ("secret_ref", "secret_ref"),
-]
+    if organization is None:
+        return [], []
+
+    account_ids = list(
+        organization.memberships.values_list("account_id", flat=True)
+    )
+    qs = SyncedAuditEntry.objects.filter(account_id__in=account_ids)
+
+    actions = sorted(
+        qs.values_list("action", flat=True).distinct()
+    )
+    targets = sorted(
+        qs.values_list("target_type", flat=True).distinct()
+    )
+    return (
+        [(a, a) for a in actions],
+        [(t, t) for t in targets],
+    )
 
 
 @require_permission("audit.view")
@@ -171,19 +171,46 @@ def audit(request):
         if val:
             filters[key] = val
 
+    org = request.organization
+    app = services.get_active_app(request)
+    env = services.get_active_env(request)
     page = int(request.GET.get("page", 1))
-    entries = services.get_audit_trail(filters=filters, page=page)
+    sort = request.GET.get("sort", "-sequence")
+    if sort not in ("sequence", "-sequence"):
+        sort = "-sequence"
+    per_page = 25
+
+    entries, total = services.get_audit_trail(
+        org, filters=filters, page=page, sort=sort, per_page=per_page,
+        application=app, environment=env,
+    )
+    action_choices, target_choices = _audit_choices(org)
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    # Build visible page numbers: current +/- 2, always include 1 and last
+    visible_pages = sorted({
+        p for p in [1, page - 2, page - 1, page, page + 1, page + 2, total_pages]
+        if 1 <= p <= total_pages
+    })
+
+    subtitle = "Platform operations log"
+    if app:
+        subtitle = f"{app.name} \u00b7 {env.capitalize()}"
 
     return render(request, "dashboard/audit.html", {
         "page_title": "Audit Trail",
-        "page_subtitle": "Platform operations log",
+        "page_subtitle": subtitle,
+        "active_app": app,
+        "active_env": env,
         "entries": entries,
         "filters": filters,
-        "action_choices": AUDIT_ACTION_CHOICES,
-        "target_choices": AUDIT_TARGET_CHOICES,
+        "action_choices": action_choices,
+        "target_choices": target_choices,
         "current_page": page,
-        "has_next": len(entries) == 25,
-        "has_prev": page > 1,
+        "current_sort": sort,
+        "total": total,
+        "total_pages": total_pages,
+        "visible_pages": visible_pages,
     })
 
 
@@ -193,6 +220,7 @@ def getting_started(request):
     return render(request, "dashboard/getting_started.html", {
         "page_title": "Getting Started",
         "page_subtitle": "Set up your integration",
+        "hide_toggles": True,
         "onboarding": services.get_onboarding_status(org) if org else None,
     })
 
@@ -220,17 +248,26 @@ def set_application(request):
 
 @require_permission("members.view")
 def members(request):
-    """Organization member list."""
+    """Organization member list with app+env role overrides."""
     org = request.organization
     memberships = (
         org.memberships
         .select_related("account", "role")
+        .prefetch_related(
+            "app_memberships__application",
+            "app_memberships__role",
+        )
         .order_by("joined_at")
     ) if org else []
+    apps = org.applications.order_by("name") if org else []
+    roles = org.roles.order_by("-is_default", "name") if org else []
     return render(request, "dashboard/members.html", {
         "page_title": "Members",
         "page_subtitle": org.name if org else "",
+        "hide_toggles": True,
         "memberships": memberships,
+        "apps": apps,
+        "roles": roles,
     })
 
 
@@ -238,31 +275,34 @@ def members(request):
 def key_analytics(request):
     """API key analytics — lifecycle stats, recency, creation trends.
 
-    Supports filtering via query params:
-      ?app=all         — all applications in the org
-      ?app=<id>        — specific application (default: active app)
+    Uses global app/env toggles. Optional query param:
       ?keys=id1,id2    — narrow to specific keys
     """
     org = request.organization
     active_app = services.get_active_app(request)
+    env = services.get_active_env(request)
 
-    # Parse filters from query params
-    app_filter = request.GET.get("app", "")
+    # Optional key filter
     key_ids_raw = request.GET.get("keys", "")
     key_ids = [k.strip() for k in key_ids_raw.split(",") if k.strip()] or None
 
-    if not app_filter and active_app:
-        app_filter = active_app.id
-
-    qs = analytics.resolve_key_queryset(org, app_id=app_filter, key_ids=key_ids)
-
-    # Build filter context for the template
-    filter_apps = org.applications.order_by("name") if org else []
-    filterable_keys = analytics.get_filterable_keys(org) if org else []
-
-    subtitle = "All applications" if app_filter == "all" else (
-        active_app.name if active_app else "API key usage and lifecycle"
+    qs = analytics.resolve_key_queryset(
+        org, app_id=active_app.id if active_app else None,
+        key_ids=key_ids, environment=env,
     )
+
+    # Key picker data (scoped to active app + env)
+    filterable_keys = []
+    if active_app:
+        keys = list(
+            active_app.api_keys
+            .filter(environment=env)
+            .order_by("-created_at")
+            .values("id", "key_prefix", "label", "environment", "is_active")[:50]
+        )
+        filterable_keys = [{"app": active_app, "keys": keys}]
+
+    subtitle = f"{active_app.name} \u00b7 {env.capitalize()}" if active_app else "All keys"
     if key_ids:
         subtitle += f" ({len(key_ids)} keys selected)"
 
@@ -270,12 +310,11 @@ def key_analytics(request):
         "page_title": "Key Analytics",
         "page_subtitle": subtitle,
         "active_app": active_app,
+        "active_env": env,
         "lifecycle": analytics.get_key_lifecycle_stats(qs),
         "recency": analytics.to_json(analytics.get_key_recency_buckets(qs)),
         "creation_series": analytics.to_json(analytics.get_key_creation_series(qs)),
-        "filter_app": app_filter,
         "filter_keys": key_ids or [],
-        "filter_apps": filter_apps,
         "filterable_keys": filterable_keys,
     })
 
@@ -283,15 +322,23 @@ def key_analytics(request):
 def sync(request):
     """Sync agent status — connection health, batch history, integrity."""
     org = request.organization
+    app = services.get_active_app(request)
+    env = services.get_active_env(request)
     page = int(request.GET.get("page", 1))
+
+    filt = {"application": app, "environment": env}
+    subtitle = f"{app.name} \u00b7 {env.capitalize()}" if app else "Agent connection and batch history"
+
     return render(request, "dashboard/sync.html", {
         "page_title": "Sync Status",
-        "page_subtitle": "Agent connection and batch history",
-        "health": analytics.get_sync_health(org) if org else None,
-        "integrity": analytics.get_chain_integrity(org) if org else None,
+        "page_subtitle": subtitle,
+        "active_app": app,
+        "active_env": env,
+        "health": analytics.get_sync_health(org, **filt) if org else None,
+        "integrity": analytics.get_chain_integrity(org, **filt) if org else None,
         "throughput": analytics.to_json(
-            analytics.get_batch_throughput_series(org)
+            analytics.get_batch_throughput_series(org, **filt)
         ) if org else "null",
-        "batches": analytics.get_batch_history(org, page=page) if org else [],
+        "batches": analytics.get_batch_history(org, page=page, **filt) if org else [],
         "current_page": page,
     })

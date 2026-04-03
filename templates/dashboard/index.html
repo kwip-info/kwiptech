@@ -3,6 +3,37 @@
 {% block title %}Dashboard - scoped{% endblock %}
 
 {% block page_content %}
+{% if organization and organization.billing_status == "suspended" %}
+<div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="text-sm font-semibold text-red-800">Sync suspended</p>
+            <p class="mt-1 text-sm text-red-700">Your usage exceeds plan limits and the grace period has expired. Upgrade your plan to resume sync.</p>
+        </div>
+        <a href="{% url 'dashboard:billing' %}"
+           class="shrink-0 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500">
+            Upgrade plan
+        </a>
+    </div>
+</div>
+{% endif %}
+{% if organization and organization.overage_since and organization.billing_status != "suspended" %}
+<div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="text-sm font-semibold text-amber-800">Usage exceeds plan limits</p>
+            <p class="mt-1 text-sm text-amber-700">
+                You've been over your plan limits since {{ organization.overage_since|date:"M j, Y" }}.
+                Upgrade within the grace period to avoid service interruption.
+            </p>
+        </div>
+        <a href="{% url 'dashboard:billing' %}"
+           class="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500">
+            Upgrade plan
+        </a>
+    </div>
+</div>
+{% endif %}
 {% if organization and organization.billing_status == "past_due" %}
 <div class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
     <div class="flex items-center justify-between">
@@ -99,34 +130,42 @@
         {% endif %}
     </div>
 
-    <!-- Environment breakdown -->
+    <!-- Key status breakdown -->
     <div class="rounded-lg border border-gray-200 bg-white p-5">
-        <p class="text-sm font-medium text-gray-500 mb-4">Keys by Environment</p>
+        <p class="text-sm font-medium text-gray-500 mb-4">Key Status</p>
+        {% if key_summary %}
         <div x-data x-init="
-            let d = {{ env_breakdown }};
-            if (d.test + d.live > 0) {
-                new ApexCharts($refs.envChart, {
+            let active = {{ key_summary.active }};
+            let revoked = {{ key_summary.revoked }};
+            if (active + revoked > 0) {
+                new ApexCharts($refs.statusChart, {
                     chart: { type: 'donut', height: 200 },
-                    series: [d.test, d.live],
-                    labels: ['Test', 'Live'],
-                    colors: ['#a855f7', '#ec4899'],
+                    series: [active, revoked],
+                    labels: ['Active', 'Revoked'],
+                    colors: ['#22c55e', '#ef4444'],
                     legend: { position: 'bottom', fontSize: '12px' },
                     dataLabels: { enabled: false },
                     plotOptions: { pie: { donut: { size: '60%' } } },
                 }).render();
             }
         ">
-            <div x-ref="envChart"></div>
+            <div x-ref="statusChart"></div>
         </div>
+        {% else %}
+        <p class="text-sm text-gray-400 py-8 text-center">No keys in this environment</p>
+        {% endif %}
     </div>
 </div>
 
-<!-- Key activity (7 days) -->
+<!-- SDK Activity (7 days) -->
 <div class="rounded-lg border border-gray-200 bg-white p-5 mb-8">
-    <p class="text-sm font-medium text-gray-500 mb-4">Key Operations (7 days)</p>
+    <div class="flex items-center justify-between mb-4">
+        <p class="text-sm font-medium text-gray-500">SDK Activity (7 days)</p>
+        <span class="text-xs text-gray-400">all synced operations</span>
+    </div>
     <div x-data x-init="
-        let ka = {{ key_activity }};
-        new ApexCharts($refs.keyChart, {
+        let ka = {{ activity_series }};
+        new ApexCharts($refs.activityChart, {
             chart: { type: 'bar', height: 180, toolbar: { show: false } },
             series: [{ name: 'Operations', data: ka.data }],
             xaxis: { categories: ka.labels, labels: { style: { fontSize: '11px' } } },
@@ -137,7 +176,7 @@
             yaxis: { labels: { style: { fontSize: '11px' } } },
         }).render();
     ">
-        <div x-ref="keyChart"></div>
+        <div x-ref="activityChart"></div>
     </div>
 </div>
 
@@ -145,7 +184,10 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Resource trends (30 days) -->
     <div class="rounded-lg border border-gray-200 bg-white p-5">
-        <p class="text-sm font-medium text-gray-500 mb-4">Resource Trends (30 days)</p>
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm font-medium text-gray-500">Resource Trends (30 days)</p>
+            <span class="text-xs text-gray-400">{{ active_env }} env{% if active_app %} &middot; {{ active_app.name }}{% endif %}</span>
+        </div>
         <div x-data x-init="
             let rt = {{ resource_trends }};
             if (rt) {
@@ -173,7 +215,10 @@
 
     <!-- Audit volume (30 days) -->
     <div class="rounded-lg border border-gray-200 bg-white p-5">
-        <p class="text-sm font-medium text-gray-500 mb-4">Audit Volume (30 days)</p>
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm font-medium text-gray-500">Audit Volume (30 days)</p>
+            <span class="text-xs text-gray-400">{{ active_env }} env{% if active_app %} &middot; {{ active_app.name }}{% endif %}</span>
+        </div>
         <div x-data x-init="
             let av = {{ audit_volume }};
             if (av) {

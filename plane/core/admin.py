@@ -5,6 +5,7 @@ from django.contrib import admin
 from plane.core.models import (
     Account,
     ApiKey,
+    AppMembership,
     Application,
     Membership,
     Organization,
@@ -74,3 +75,10 @@ class RoleAdmin(admin.ModelAdmin):
 class MembershipAdmin(admin.ModelAdmin):
     list_display = ("account", "organization", "role", "joined_at")
     search_fields = ("account__email", "organization__name")
+
+
+@admin.register(AppMembership)
+class AppMembershipAdmin(admin.ModelAdmin):
+    list_display = ("membership", "application", "environment", "role", "created_at")
+    list_filter = ("environment",)
+    search_fields = ("membership__account__email", "application__name")

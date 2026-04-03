@@ -6,6 +6,9 @@
 <!-- Search and filters -->
 <div class="mb-6 rounded-lg border border-gray-200 bg-white p-4">
     <form method="get" action="{% url 'dashboard:audit' %}" class="flex flex-wrap items-end gap-4">
+        {% if current_sort != '-sequence' %}
+        <input type="hidden" name="sort" value="{{ current_sort }}">
+        {% endif %}
         <div class="flex-1 min-w-[200px]">
             <label for="filter-search" class="block text-xs font-medium text-gray-500">Search</label>
             <input type="text" name="search" id="filter-search"
@@ -57,40 +60,76 @@
     </form>
 </div>
 
-<!-- Table -->
 {% if entries %}
+<!-- Results bar -->
+<div class="flex items-center justify-between mb-3">
+    <p class="text-sm text-gray-500">
+        {{ total }} entr{{ total|pluralize:"y,ies" }}{% if filters %} matching filters{% endif %}
+    </p>
+    <a href="?{% for k, v in filters.items %}{{ k }}={{ v|urlencode }}&{% endfor %}sort={% if current_sort == '-sequence' %}sequence{% else %}-sequence{% endif %}"
+       class="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+        {% if current_sort == '-sequence' %}
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        Newest first
+        {% else %}
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+        Oldest first
+        {% endif %}
+    </a>
+</div>
+
+<!-- Table -->
 <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
     <table class="w-full">
         <thead class="hidden sm:table-header-group">
             <tr class="border-b border-gray-100 bg-gray-50">
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">#</th>
                 <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Action</th>
                 <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
-                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Actor</th>
+                <th class="px-5 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Actor</th>
                 <th class="px-5 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Time</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
             {% for entry in entries %}
-            <tr>
+            <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-5 py-3 text-xs text-gray-400 tabular-nums">
+                    {{ entry.sequence }}
+                </td>
                 <td class="px-5 py-3 whitespace-nowrap">
                     <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
                                  {% if 'create' in entry.action|stringformat:'s' %}bg-green-50 text-green-700
-                                 {% elif 'update' in entry.action|stringformat:'s' or 'rotate' in entry.action|stringformat:'s' %}bg-blue-50 text-blue-700
-                                 {% elif 'delete' in entry.action|stringformat:'s' or 'revoke' in entry.action|stringformat:'s' %}bg-red-50 text-red-700
-                                 {% elif 'grant' in entry.action|stringformat:'s' %}bg-purple-50 text-purple-700
+                                 {% elif 'update' in entry.action|stringformat:'s' or 'rotate' in entry.action|stringformat:'s' or 'modify' in entry.action|stringformat:'s' %}bg-blue-50 text-blue-700
+                                 {% elif 'delete' in entry.action|stringformat:'s' or 'revoke' in entry.action|stringformat:'s' or 'dissolve' in entry.action|stringformat:'s' %}bg-red-50 text-red-700
+                                 {% elif 'grant' in entry.action|stringformat:'s' or 'membership' in entry.action|stringformat:'s' %}bg-purple-50 text-purple-700
+                                 {% elif 'access_check' in entry.action|stringformat:'s' %}bg-amber-50 text-amber-700
+                                 {% elif 'secret' in entry.action|stringformat:'s' %}bg-indigo-50 text-indigo-700
                                  {% else %}bg-gray-50 text-gray-700{% endif %}">
                         {{ entry.action }}
                     </span>
                 </td>
                 <td class="px-5 py-3 min-w-0">
-                    <span class="text-sm text-gray-900">{{ entry.target_type }}</span>
-                    <code class="ml-2 text-xs text-gray-400">{{ entry.target_id|truncatechars:20 }}</code>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-gray-900">{{ entry.target_type }}</span>
+                        <code class="text-xs text-gray-400 truncate max-w-[160px]" title="{{ entry.target_id }}">{{ entry.target_id|truncatechars:20 }}</code>
+                    </div>
+                    {% if entry.scope_id %}
+                    <p class="text-[11px] text-gray-400 mt-0.5">scope: {{ entry.scope_id|truncatechars:16 }}</p>
+                    {% endif %}
                 </td>
-                <td class="px-5 py-3 text-xs text-gray-500 whitespace-nowrap">
-                    {% if entry.actor_id == 'system' %}System{% else %}{{ entry.actor_id|truncatechars:16 }}{% endif %}
+                <td class="px-5 py-3 whitespace-nowrap">
+                    {% if entry.actor_id == 'system' %}
+                    <span class="inline-flex items-center gap-1 text-xs text-gray-500">
+                        <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
+                        System
+                    </span>
+                    {% else %}
+                    <span class="text-xs text-gray-600" title="{{ entry.actor_id }}">{{ entry.actor_id|truncatechars:16 }}</span>
+                    {% endif %}
                 </td>
-                <td class="px-5 py-3 text-xs text-gray-500 text-right whitespace-nowrap">
-                    {{ entry.timestamp|date:"M j, Y g:i:s A" }}
+                <td class="px-5 py-3 text-xs text-gray-500 text-right whitespace-nowrap tabular-nums">
+                    {{ entry.timestamp|date:"M j, Y" }}
+                    <span class="text-gray-400">{{ entry.timestamp|date:"g:i:s A" }}</span>
                 </td>
             </tr>
             {% endfor %}
@@ -99,21 +138,37 @@
 </div>
 
 <!-- Pagination -->
-{% if has_prev or has_next %}
+{% if total_pages > 1 %}
 <nav class="mt-4 flex items-center justify-between">
-    <p class="text-sm text-gray-500">Page {{ current_page }}</p>
-    <div class="flex items-center gap-2">
-        {% if has_prev %}
-        <a href="?page={{ current_page|add:"-1" }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
-           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-            Previous
-        </a>
+    <p class="text-sm text-gray-500">
+        Page {{ current_page }} of {{ total_pages }}
+    </p>
+    <div class="flex items-center gap-1">
+        {% if current_page > 1 %}
+        <a href="?page={{ current_page|add:"-1" }}&sort={{ current_sort }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
+           class="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100">&laquo;</a>
         {% endif %}
-        {% if has_next %}
-        <a href="?page={{ current_page|add:"1" }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
-           class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-            Next
-        </a>
+
+        {% for p in visible_pages %}
+            {% if not forloop.first %}
+                {% with prev_page=visible_pages|slice:":forloop.counter0"|last %}
+                {% endwith %}
+                {# Show ellipsis if gap between consecutive visible pages #}
+                {% widthratio p 1 1 as p_int %}
+                {% with forloop.counter0 as idx %}
+                {% endwith %}
+            {% endif %}
+            {% if p == current_page %}
+            <span class="rounded-md bg-brand-600 px-3 py-1 text-sm font-medium text-white">{{ p }}</span>
+            {% else %}
+            <a href="?page={{ p }}&sort={{ current_sort }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
+               class="rounded-md px-3 py-1 text-sm text-gray-700 hover:bg-gray-100">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if current_page < total_pages %}
+        <a href="?page={{ current_page|add:"1" }}&sort={{ current_sort }}{% for k, v in filters.items %}&{{ k }}={{ v|urlencode }}{% endfor %}"
+           class="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100">&raquo;</a>
         {% endif %}
     </div>
 </nav>

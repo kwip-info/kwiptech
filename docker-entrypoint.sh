@@ -15,6 +15,12 @@ echo "Database is ready"
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
+echo "Seeding plans..."
+python manage.py seed_plans
+
+echo "Syncing SDK docs..."
+python manage.py sync_pyscoped_docs --output /app/pyscoped-docs 2>/dev/null || true
+
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 

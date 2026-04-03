@@ -14,34 +14,31 @@ The pyscoped dashboard is the web interface for managing your organization's res
 
 The overview page (`/dashboard/`) is the landing page after sign-in. It provides a high-level summary of your organization's current state.
 
-### Usage Cards
+All data on the overview page is filtered by the active application and environment selected via the header toggles. The subtitle shows the current context (e.g., "Default · Test").
 
-Four summary cards display real-time resource counts:
+### Summary Cards
 
-- **Active Objects** -- Current count vs. plan limit with a progress bar. Color shifts from green to amber to red as usage approaches the limit.
-- **Active Principals** -- Same format as objects.
-- **Audit Entries Synced** -- Total entries synced during the current billing period.
-- **Sync Status** -- Time since the last successful batch sync. Displays "Connected" (green) if within 2x the plan's sync interval, "Stale" (amber) if lagging, or "Disconnected" (red) if no sync in 24+ hours.
+Four cards at the top:
 
-### Activity Feed
+- **API Keys** — Active key count for the selected app + environment. Links to key management.
+- **Sync Status** — Last sync time, or "No data" if no sync agent connected.
+- **Active Objects** — Current object and principal counts from the latest `UsageSnapshot`.
+- **Audit Activity** — Number of synced audit entries received today. Links to the audit trail.
 
-A chronological feed of the 20 most recent audit entries, rendered in a compact timeline format:
+### Activity Feed + Key Status
 
-```
-12:34:05  alice  object.create  Document  doc_abc123
-12:33:58  bob    rule.update    Role      role_editor
-12:33:41  alice  member.invite  User      user_xyz
-```
+Two-column layout:
 
-Each entry links to the full audit trail with the relevant filters pre-applied.
+- **Recent Activity** — The 10 most recent synced audit entries for the current app+env, showing action badge, target type, target ID, and relative timestamp.
+- **Key Status** — Donut chart showing active vs. revoked keys for the selected environment.
 
-### Environment Breakdown Chart
+### Charts
 
-An ApexCharts donut chart showing the distribution of API keys and audit activity across `live` and `test` environments. Hover for exact counts.
+- **SDK Activity (7 days)** — Bar chart of daily synced operation counts from `SyncedAuditEntry`.
+- **Resource Trends (30 days)** — Area chart of objects, principals, and scopes from `UsageSnapshot`.
+- **Audit Volume (30 days)** — Bar chart of daily synced entry counts.
 
-### Resource Trends
-
-A line chart showing object and principal counts over the last 30 days, plotted from `UsageSnapshot` records. Useful for identifying growth patterns and forecasting plan upgrades.
+All charts are filtered by the active app + environment and labeled with the current context.
 
 ---
 
@@ -116,42 +113,36 @@ This allows zero-downtime credential rotation: deploy the new key to your SDK co
 
 Access from the sidebar: **Audit Trail** (`/dashboard/audit/`).
 
-A searchable, filterable log of all `SyncedAuditEntry` records for the current organization.
+A searchable, filterable log of `SyncedAuditEntry` records. Data is scoped to the active application and environment via the header toggles — entries are filtered by accounts whose API keys match the selected app + env.
 
 ### Filters
 
 | Filter       | Type         | Description                                          |
 |--------------|--------------|------------------------------------------------------|
-| Action       | Dropdown     | Filter by action name (e.g. `object.create`, `rule.update`). |
-| Target Type  | Dropdown     | Filter by resource type (e.g. `Document`, `Role`).   |
-| Actor        | Text input   | Filter by actor ID (partial match supported).        |
-| Date Range   | Date picker  | Start and end dates for the time window.             |
+| Search       | Text input   | Full-text search across action, target type, target ID, and actor ID. |
+| Action       | Dropdown     | Dynamic — populated from distinct actions in the synced data.  |
+| Target Type  | Dropdown     | Dynamic — populated from distinct target types in the synced data. |
+| Since / Until| Date pickers | Filter by entry timestamp range.                     |
 
-Filters are applied via HTMX partial page updates -- no full page reload required.
+Filters are applied via form submission. The action and target type dropdowns are built dynamically from actual data in `SyncedAuditEntry` for the organization, so they always reflect what's present.
 
 ### Results Table
 
 | Column       | Description                                 |
 |--------------|---------------------------------------------|
-| Sequence     | Entry sequence number.                      |
-| Timestamp    | Server-side received timestamp.             |
-| Actor        | The principal who performed the action.     |
-| Action       | Action name with color-coded badge.         |
-| Target       | `{target_type}/{target_id}` link.           |
-| Scope        | Scope ID, if present.                       |
+| #            | Entry sequence number.                      |
+| Action       | Color-coded badge (green=create, blue=update, red=delete/revoke, purple=membership, amber=access_check). |
+| Target       | Target type + truncated target ID. Scope ID shown below when present. |
+| Actor        | Actor ID, or "System" with dot indicator.   |
+| Time         | Date + time in tabular-nums format.         |
+
+### Sorting
+
+A toggle button switches between "Newest first" (default, `-sequence`) and "Oldest first" (`sequence`). Sort state is preserved across pagination and filter changes.
 
 ### Pagination
 
-Results are paginated at 50 entries per page. Navigation controls appear at the bottom of the table. Total entry count is displayed in the header.
-
-### Entry Detail
-
-Clicking a row expands an inline detail panel showing:
-
-- Full entry metadata (all fields from `SyncedAuditEntry`).
-- Chain integrity: hash and previous hash values.
-- Metadata JSON rendered as a formatted key-value table.
-- Trace ID link (if `parent_trace_id` is set).
+Results are paginated at 25 entries per page. Numbered page links (current ± 2, plus first and last page) with `«` / `»` arrows. Total count displayed (e.g., "11 entries" or "3 entries matching filters").
 
 ---
 
@@ -261,18 +252,29 @@ Changes are saved via HTMX on each checkbox toggle. The corresponding pyscoped r
 
 ## Members
 
-Access from the sidebar: **Settings > Members** (`/dashboard/members/`).
+Access from the sidebar: **Members** (`/dashboard/members/`).
 
-A table of organization members:
+Each member card shows:
 
-| Column     | Description                              |
-|------------|------------------------------------------|
-| Name/Email | Member's email (from Account).           |
-| Role       | Dropdown to reassign roles.              |
-| Joined     | Relative timestamp.                      |
-| Actions    | Remove button (if the user has permission). |
+- **Email** — from the linked Account (backfilled from Clerk JWT claims or Clerk API).
+- **Org role** — the default role for the organization, labeled "org default".
+- **App overrides** — any app+env scoped role overrides (see below).
+- **Joined date**.
 
-Role changes are applied immediately and synced to both Clerk (organization membership role) and pyscoped (membership rules).
+### App + Environment Role Overrides
+
+Members can have different roles for specific application and environment combinations. For example, a Developer at the org level can be restricted to Viewer on the production app's live environment.
+
+**Adding an override:** Users with `members.manage` permission see an "+ Add app override" button on each member card. The form lets you select an application, environment (Test / Live / All environments), and role.
+
+**Resolution order:** The middleware resolves the effective role on every request:
+1. Check for an exact `(app, env)` override
+2. Check for an app-wide override (`env = NULL`)
+3. Fall back to the org-level role
+
+**Removing an override:** Click the X button on any override row. The member reverts to their org-level role for that context.
+
+The app/env toggles in the header are hidden on the Members page since role management is org-level. The overrides themselves specify which app+env they apply to.
 
 ---
 
