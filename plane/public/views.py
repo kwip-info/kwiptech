@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 
 def landing(request):
+    if getattr(request, "clerk_user", None):
+        return redirect("dashboard:index")
     return render(request, "public/landing.html")
 
 

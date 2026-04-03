@@ -157,9 +157,20 @@ function syncClerkSession(clerk) {
 
 // Keep session cookie in sync and mount UserButton
 onClerkReady(function (clerk) {
-    syncClerkSession(clerk);
+    syncClerkSession(clerk).then(function () {
+        // If user is authenticated but page was rendered without auth context,
+        // redirect to dashboard (covers landing page after sign-in completion)
+        if (clerk.user && !document.querySelector("[data-clerk-authed]")) {
+            window.location.replace("/dashboard/");
+            return;
+        }
+    });
     clerk.addListener(function () {
-        syncClerkSession(clerk);
+        syncClerkSession(clerk).then(function () {
+            if (clerk.user && !document.querySelector("[data-clerk-authed]")) {
+                window.location.replace("/dashboard/");
+            }
+        });
     });
 
     var el = document.getElementById("clerk-user-button");
