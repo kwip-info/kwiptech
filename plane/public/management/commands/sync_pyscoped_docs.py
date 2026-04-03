@@ -32,14 +32,14 @@ class Command(BaseCommand):
             help="Directory to write docs to (default: $PYSCOPED_DOCS_PATH or /tmp/pyscoped-docs)",
         )
         parser.add_argument(
-            "--version",
+            "--sdk-version",
             default=None,
             help="Specific pyscoped version to fetch (default: installed version)",
         )
 
     def handle(self, *args, **options):
         output_dir = Path(options["output"])
-        version = options["version"] or self._get_installed_version()
+        version = options["sdk_version"] or self._get_installed_version()
 
         if not version:
             self.stderr.write(self.style.ERROR("Cannot determine pyscoped version"))
