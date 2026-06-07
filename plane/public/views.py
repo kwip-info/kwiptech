@@ -346,7 +346,9 @@ def robots_txt(request):
     for path in disallow:
         lines.append(f"Disallow: {path}")
     lines.append("")
-    lines.append(f"Sitemap: {request.build_absolute_uri('/llms.txt')}")
+    # LLM-discovery index (llmstxt.org). Not an XML sitemap, so it's advertised
+    # as a comment rather than a Sitemap: directive.
+    lines.append(f"# LLM index: {request.build_absolute_uri('/llms.txt')}")
     lines.append("")
 
     return _allow_crawlers(
