@@ -1,5 +1,9 @@
 """Tests for public marketing pages."""
 
+import tempfile
+from pathlib import Path
+from unittest import mock
+
 from django.test import TestCase
 
 
@@ -113,3 +117,71 @@ class AuthPageRoutingTest(TestCase):
     def test_sign_in_sub_path_returns_200(self):
         response = self.client.get("/sign-in/factor-one")
         assert response.status_code == 200
+
+
+class AgentContextDownloadTest(TestCase):
+    """CLAUDE.md and AGENTS.md downloads for LLM/agent workspaces."""
+
+    def _serve(self, view_path, filename):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / filename
+            f.write_text(f"# {filename}\nhello")
+            with mock.patch(view_path, return_value=f):
+                return self.client.get(f"/docs/{filename.lower()}")
+
+    def test_claude_md_downloads(self):
+        resp = self._serve("plane.public.views._get_claude_md", "CLAUDE.md")
+        assert resp.status_code == 200
+        self.assertEqual(resp["Content-Disposition"], 'attachment; filename="CLAUDE.md"')
+        self.assertIn("markdown", resp["Content-Type"])
+
+    def test_agents_md_downloads(self):
+        resp = self._serve("plane.public.views._get_agents_md", "AGENTS.md")
+        assert resp.status_code == 200
+        self.assertEqual(resp["Content-Disposition"], 'attachment; filename="AGENTS.md"')
+        self.assertIn("markdown", resp["Content-Type"])
+
+    def test_agents_md_is_crawlable(self):
+        resp = self._serve("plane.public.views._get_agents_md", "AGENTS.md")
+        self.assertEqual(resp["X-Robots-Tag"], "all")
+        self.assertEqual(resp["Access-Control-Allow-Origin"], "*")
+
+    def test_agents_md_missing_returns_404(self):
+        with mock.patch(
+            "plane.public.views._get_agents_md", return_value=Path("/nope/AGENTS.md")
+        ):
+            resp = self.client.get("/docs/agents.md")
+        assert resp.status_code == 404
+
+
+class CrawlerDiscoveryTest(TestCase):
+    """robots.txt and llms.txt welcome crawlers on the docs segment."""
+
+    def test_robots_txt_returns_200(self):
+        resp = self.client.get("/robots.txt")
+        assert resp.status_code == 200
+        self.assertIn("text/plain", resp["Content-Type"])
+
+    def test_robots_allows_ai_crawlers_on_docs(self):
+        body = self.client.get("/robots.txt").content.decode()
+        self.assertIn("User-agent: ClaudeBot", body)
+        self.assertIn("User-agent: GPTBot", body)
+        self.assertIn("Allow: /docs", body)
+
+    def test_robots_disallows_app_segments(self):
+        body = self.client.get("/robots.txt").content.decode()
+        self.assertIn("Disallow: /dashboard/", body)
+        self.assertIn("Disallow: /admin/", body)
+        self.assertIn("Disallow: /v1/", body)
+
+    def test_llms_txt_returns_200_and_links_context(self):
+        resp = self.client.get("/llms.txt")
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        self.assertIn("/docs/claude.md", body)
+        self.assertIn("/docs/agents.md", body)
+
+    def test_discovery_files_are_crawlable(self):
+        for url in ("/robots.txt", "/llms.txt"):
+            resp = self.client.get(url)
+            self.assertEqual(resp["X-Robots-Tag"], "all", url)

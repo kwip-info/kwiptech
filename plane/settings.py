@@ -185,6 +185,7 @@ SCOPED_EXEMPT_PATHS = [
     "/terms", "/privacy", "/cookies", "/docs",
     "/sign-in", "/sign-up", "/static/",
     "/webhooks/",
+    "/robots.txt", "/llms.txt",
 ]
 
 # ---------------------------------------------------------------------------

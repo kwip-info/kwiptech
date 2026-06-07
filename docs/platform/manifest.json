@@ -13,6 +13,7 @@
     {"path": "dashboard.md", "title": "Dashboard Guide", "category": "usage", "order": 1, "description": "All dashboard features — keys, audit, sync, billing, roles"},
     {"path": "architecture.md", "title": "Platform Architecture", "category": "internals", "order": 1, "description": "Dual-model pattern, auth flow, billing pipeline, tech stack"},
     {"path": "data-model.md", "title": "Data Model Reference", "category": "internals", "order": 2, "description": "Complete Django model reference with fields and relationships"},
-    {"path": "deployment.md", "title": "Deployment Guide", "category": "operations", "order": 1, "description": "Docker, Heroku, env vars, migrations, security"}
+    {"path": "deployment.md", "title": "Deployment Guide", "category": "operations", "order": 1, "description": "Docker, Heroku, env vars, migrations, security"},
+    {"path": "cloudflare-docs-crawlers.md", "title": "Allowing Crawlers on the Docs", "category": "operations", "order": 2, "description": "Fix AI/LLM crawler 403s with a Cloudflare WAF skip rule scoped to /docs"}
   ]
 }

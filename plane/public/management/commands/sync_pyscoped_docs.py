@@ -1,13 +1,13 @@
 """Download and extract pyscoped documentation from PyPI.
 
-Fetches the pyscoped source distribution, extracts docs/ and CLAUDE.md,
-and writes them to a local directory. Works on any platform — Heroku,
-Docker, bare metal.
+Fetches the pyscoped source distribution, extracts docs/, CLAUDE.md, and
+AGENTS.md, and writes them to a local directory. Works on any platform —
+Heroku, Docker, bare metal.
 
 Usage:
     python manage.py sync_pyscoped_docs
     python manage.py sync_pyscoped_docs --output /tmp/pyscoped-docs
-    python manage.py sync_pyscoped_docs --version 0.6.0
+    python manage.py sync_pyscoped_docs --sdk-version 1.5.0
 """
 
 import os
@@ -83,7 +83,6 @@ class Command(BaseCommand):
 
             src = extracted[0]
             docs_src = src / "docs"
-            claude_src = src / "CLAUDE.md"
 
             if not docs_src.exists():
                 self.stderr.write(self.style.ERROR(f"No docs/ directory in {src.name}"))
@@ -94,8 +93,11 @@ class Command(BaseCommand):
                 shutil.rmtree(output_dir)
             shutil.copytree(docs_src, output_dir)
 
-            if claude_src.exists():
-                shutil.copy2(claude_src, output_dir / "CLAUDE.md")
+            # Copy the agent context files (downloaded alongside the docs).
+            for fname in ("CLAUDE.md", "AGENTS.md"):
+                src_file = src / fname
+                if src_file.exists():
+                    shutil.copy2(src_file, output_dir / fname)
 
         doc_count = len(list(output_dir.rglob("*.md")))
         self.stdout.write(self.style.SUCCESS(

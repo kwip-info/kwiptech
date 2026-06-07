@@ -14,10 +14,14 @@ urlpatterns = [
     path("terms", views.terms, name="terms"),
     path("privacy", views.privacy, name="privacy"),
     path("cookies", views.cookies, name="cookies"),
+    # Crawler discovery
+    path("robots.txt", views.robots_txt, name="robots_txt"),
+    path("llms.txt", views.llms_txt, name="llms_txt"),
     # Documentation
     path("docs", views.docs, name="docs"),
     path("docs/manifest.json", views.docs_manifest, name="docs_manifest"),
     path("docs/claude.md", views.claude_md, name="claude_md"),
+    path("docs/agents.md", views.agents_md, name="agents_md"),
     path("docs/raw/<path:path>", views.docs_raw, name="docs_raw"),
     # Platform docs (served from local docs/platform/)
     path("docs/platform/manifest.json", views.platform_docs_manifest, name="platform_docs_manifest"),

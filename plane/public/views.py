@@ -7,6 +7,26 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 
 
+def _allow_crawlers(response):
+    """Mark a response as freely crawlable/fetchable.
+
+    Docs are public and meant to be indexed and read by tools and LLM crawlers.
+    We explicitly opt the docs segment into indexing (``X-Robots-Tag: all``) and
+    allow cross-origin programmatic fetches (``Access-Control-Allow-Origin: *``).
+
+    NOTE: AI-crawler 403s on this site originate at the Cloudflare edge (the
+    "Block AI Scrapers and Crawlers" / Bot Fight Mode feature), not here — those
+    requests never reach Django. The fix for that is a Cloudflare WAF skip rule
+    scoped to ``/docs*`` (and ``/robots.txt`` / ``/llms.txt``); see
+    docs/platform/cloudflare-docs-crawlers.md. These headers ensure the origin
+    welcomes crawlers once the edge lets them through.
+    """
+    response["X-Robots-Tag"] = "all"
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS"
+    return response
+
+
 def landing(request):
     return render(request, "public/landing.html")
 
@@ -90,6 +110,28 @@ def _get_claude_md() -> Path:
     return Path(scoped.__file__).parent.parent / "CLAUDE.md"
 
 
+def _get_agents_md() -> Path:
+    """Locate the AGENTS.md file (same resolution order as _get_claude_md())."""
+    import os
+
+    explicit = os.environ.get("PYSCOPED_DOCS_PATH")
+    if explicit:
+        docs_path = Path(explicit)
+        agents = docs_path.parent / "AGENTS.md"
+        if agents.exists():
+            return agents
+        agents = docs_path / "AGENTS.md"
+        if agents.exists():
+            return agents
+
+    sibling = Path(__file__).resolve().parent.parent.parent / "pyscoped" / "AGENTS.md"
+    if sibling.exists():
+        return sibling
+
+    import scoped
+    return Path(scoped.__file__).parent.parent / "AGENTS.md"
+
+
 def docs(request):
     """Documentation hub — renders the manifest as a navigable page."""
     docs_root = _get_docs_root()
@@ -164,7 +206,7 @@ def docs_manifest(request):
     manifest_path = docs_root / "manifest.json"
     if not manifest_path.exists():
         return JsonResponse({"error": "Manifest not found"}, status=404)
-    return JsonResponse(json.loads(manifest_path.read_text()))
+    return _allow_crawlers(JsonResponse(json.loads(manifest_path.read_text())))
 
 
 def docs_raw(request, path):
@@ -178,7 +220,9 @@ def docs_raw(request, path):
     if not file_path.exists() or not file_path.is_file():
         return HttpResponse("Not found", status=404, content_type="text/plain")
 
-    return HttpResponse(file_path.read_text(), content_type="text/markdown; charset=utf-8")
+    return _allow_crawlers(
+        HttpResponse(file_path.read_text(), content_type="text/markdown; charset=utf-8")
+    )
 
 
 def claude_md(request):
@@ -188,7 +232,17 @@ def claude_md(request):
         return HttpResponse("CLAUDE.md not found", status=404, content_type="text/plain")
     response = HttpResponse(path.read_text(), content_type="text/markdown; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="CLAUDE.md"'
-    return response
+    return _allow_crawlers(response)
+
+
+def agents_md(request):
+    """Serve AGENTS.md for LLM/agent workspace export (vendor-neutral CLAUDE.md)."""
+    path = _get_agents_md()
+    if not path.exists():
+        return HttpResponse("AGENTS.md not found", status=404, content_type="text/plain")
+    response = HttpResponse(path.read_text(), content_type="text/markdown; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="AGENTS.md"'
+    return _allow_crawlers(response)
 
 
 def _get_platform_docs_root() -> Path:
@@ -201,7 +255,7 @@ def platform_docs_manifest(request):
     manifest_path = _get_platform_docs_root() / "manifest.json"
     if not manifest_path.exists():
         return JsonResponse({"error": "Manifest not found"}, status=404)
-    return JsonResponse(json.loads(manifest_path.read_text()))
+    return _allow_crawlers(JsonResponse(json.loads(manifest_path.read_text())))
 
 
 def platform_docs_page(request, path):
@@ -245,7 +299,89 @@ def platform_docs_raw(request, path):
     if not file_path.exists() or not file_path.is_file():
         return HttpResponse("Not found", status=404, content_type="text/plain")
 
-    return HttpResponse(file_path.read_text(), content_type="text/markdown; charset=utf-8")
+    return _allow_crawlers(
+        HttpResponse(file_path.read_text(), content_type="text/markdown; charset=utf-8")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Crawler discovery — robots.txt and llms.txt
+# ---------------------------------------------------------------------------
+
+# AI / LLM crawler user-agents we explicitly welcome on the docs segment.
+_AI_CRAWLERS = [
+    "GPTBot", "OAI-SearchBot", "ChatGPT-User",
+    "ClaudeBot", "Claude-User", "Claude-SearchBot", "anthropic-ai",
+    "PerplexityBot", "Perplexity-User",
+    "Google-Extended", "CCBot", "Applebot-Extended",
+    "Amazonbot", "Bytespider", "Meta-ExternalAgent", "cohere-ai",
+]
+
+
+def robots_txt(request):
+    """Serve robots.txt.
+
+    Crawlers (including AI/LLM crawlers) are welcome on the public docs and the
+    CLAUDE.md / AGENTS.md exports, but not on the dashboard, admin, API, or auth
+    pages. Note: actual AI-bot blocking happens at Cloudflare's edge, not here —
+    this file states intent; the enforcement change is a Cloudflare WAF skip rule
+    for /docs (see docs/platform/cloudflare-docs-crawlers.md).
+    """
+    disallow = ["/dashboard/", "/admin/", "/v1/", "/webhooks/", "/sign-in", "/sign-up"]
+    allow_docs = ["/docs", "/llms.txt", "/static/"]
+
+    lines = ["# pyscoped — https://kwip.tech", ""]
+
+    # AI crawlers: explicitly allow the docs segment, disallow the app.
+    for agent in _AI_CRAWLERS:
+        lines.append(f"User-agent: {agent}")
+        for path in allow_docs:
+            lines.append(f"Allow: {path}")
+        for path in disallow:
+            lines.append(f"Disallow: {path}")
+        lines.append("")
+
+    # Everyone else.
+    lines.append("User-agent: *")
+    for path in disallow:
+        lines.append(f"Disallow: {path}")
+    lines.append("")
+    lines.append(f"Sitemap: {request.build_absolute_uri('/llms.txt')}")
+    lines.append("")
+
+    return _allow_crawlers(
+        HttpResponse("\n".join(lines), content_type="text/plain; charset=utf-8")
+    )
+
+
+def llms_txt(request):
+    """Serve /llms.txt — an LLM-friendly index of the docs (llmstxt.org standard)."""
+    base = request.build_absolute_uri("/").rstrip("/")
+    body = f"""# pyscoped
+
+> Universal object-isolation and tenancy-scoping framework for Python. Creator-private
+> by default, explicit sharing via scopes, versioned mutations, and a tamper-evident
+> hash-chained audit trail.
+
+## Agent & LLM context
+
+- [CLAUDE.md]({base}/docs/claude.md): Full framework reference for AI assistants
+- [AGENTS.md]({base}/docs/agents.md): Vendor-neutral agent guide (incl. pyscoped[django] integration)
+
+## Docs
+
+- [Documentation hub]({base}/docs): SDK reference, platform guides, integration examples
+- [SDK docs index]({base}/docs/manifest.json): Machine-readable SDK docs manifest
+- [Platform docs index]({base}/docs/platform/manifest.json): Machine-readable platform docs manifest
+
+## Raw markdown
+
+- SDK pages: {base}/docs/raw/<path>
+- Platform pages: {base}/docs/platform/raw/<path>
+"""
+    return _allow_crawlers(
+        HttpResponse(body, content_type="text/markdown; charset=utf-8")
+    )
 
 
 def sign_in(request, rest=None):

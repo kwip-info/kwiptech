@@ -2,6 +2,8 @@
 
 from plane.settings import *  # noqa: F401, F403
 
+DEBUG = True
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -39,3 +41,12 @@ STORAGES = {
 
 # Use test URL config that excludes v1 API (requires scoped package)
 ROOT_URLCONF = "plane.test_urls"
+
+# Force HTTP behavior in tests even if the outer environment exports
+# production-like settings.
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_HSTS_SECONDS = 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
