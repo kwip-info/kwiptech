@@ -4,7 +4,8 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 
 
 class LandingPageTest(TestCase):
@@ -19,11 +20,12 @@ class LandingPageTest(TestCase):
 
     def test_contains_value_prop(self):
         response = self.client.get("/")
-        self.assertContains(response, "Know what changed")
+        self.assertContains(response, "Kwip technology solutions")
+        self.assertContains(response, "Current catalog")
 
     def test_contains_signup_cta(self):
         response = self.client.get("/")
-        self.assertContains(response, "Get started")
+        self.assertContains(response, "Request pilot access")
 
 
 class PricingPageTest(TestCase):
@@ -58,10 +60,47 @@ class DigestPageTest(TestCase):
         response = self.client.get("/digest")
         self.assertContains(response, "Universal Document Extraction Runtime")
         self.assertContains(response, "No document storage")
+        self.assertContains(response, "Start a paid pilot")
 
     def test_links_to_docs(self):
         response = self.client.get("/digest")
         self.assertContains(response, "/docs/platform/digest-runtime.md")
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DIGEST_LEAD_EMAIL="sales@example.com",
+    )
+    def test_pilot_form_sends_email(self):
+        response = self.client.post(
+            "/digest",
+            {
+                "name": "Taylor Morgan",
+                "email": "taylor@example.com",
+                "company": "ExampleCo",
+                "role": "Operations",
+                "document_types": "PDFs and scanned images",
+                "deployment_target": "kubernetes",
+                "timeline": "30_days",
+                "use_case": "Extract private intake documents before search indexing.",
+                "website": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/digest")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["sales@example.com"])
+        self.assertIn("Digest pilot request: ExampleCo", mail.outbox[0].subject)
+        self.assertIn("Taylor Morgan", mail.outbox[0].body)
+        self.assertIn("PDFs and scanned images", mail.outbox[0].body)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_pilot_form_requires_core_fields(self):
+        response = self.client.post("/digest", {"website": ""})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This field is required")
+        self.assertEqual(len(mail.outbox), 0)
 
 
 class StatusPageTest(TestCase):

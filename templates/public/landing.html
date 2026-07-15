@@ -1,120 +1,85 @@
 {% extends "_layouts/public.html" %}
 
-{% block title %}scoped — The trust layer for your application{% endblock %}
+{% block title %}Kwip - Technology solutions for private business systems{% endblock %}
 
 {% block page_content %}
 <!-- Hero -->
-<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24 text-center">
-    <h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-        Know what changed, who changed it, and why
-    </h1>
-    <p class="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
-        scoped is the universal trust layer for Python applications.
-        Audit trails, object isolation, versioning, and rollback — built into your stack,
-        not bolted on.
-    </p>
-    <div class="mt-10 flex items-center justify-center gap-4">
-        <a href="{% url 'public:sign_up' %}"
-           class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
-            Get started
-        </a>
-        <a href="{% url 'public:security' %}"
-           class="rounded-md px-5 py-2.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-            How it works
-        </a>
-    </div>
-    <div class="mt-8 flex items-center justify-center gap-6 text-sm text-gray-500">
-        <a href="https://github.com/kwip-info/pyscoped" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-1.5 hover:text-gray-900 transition-colors">
-            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            GitHub
-        </a>
-        <a href="https://pypi.org/project/pyscoped/" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-1.5 hover:text-gray-900 transition-colors">
-            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.042 23.648c-.896-.04-1.793-.09-2.688-.166a15.037 15.037 0 01-2.578-.478 8.039 8.039 0 01-2.22-1.023 4.769 4.769 0 01-1.586-1.77A5.605 5.605 0 012.45 18.1c-.064-.598-.074-1.2-.072-1.8.004-1.16.004-2.32.002-3.48V9.396c0-.29.008-.58.03-.868a5.4 5.4 0 01.504-1.94 4.725 4.725 0 011.572-1.796 7.715 7.715 0 012.166-1.05c.85-.28 1.72-.454 2.607-.558.91-.106 1.824-.152 2.74-.166.92-.014 1.84.006 2.758.068.87.058 1.734.164 2.584.356a8.14 8.14 0 012.298.914 4.862 4.862 0 011.694 1.662c.402.604.66 1.27.782 1.98.068.394.094.794.1 1.194.01.68.004 1.36.004 2.04v5.898c0 .42-.012.84-.06 1.258a5.296 5.296 0 01-.554 1.962 4.688 4.688 0 01-1.616 1.756 7.834 7.834 0 01-2.196 1.024c-.86.27-1.74.434-2.634.53-.916.098-1.836.14-2.758.156-.18.004-.36.01-.54.012h-.83zM9.81 16.088V7.912l7.07 4.088-7.07 4.088z"/></svg>
-            PyPI
-        </a>
-        <a href="https://www.piwheels.org/project/pyscoped/" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-1.5 hover:text-gray-900 transition-colors">
-            piwheels
-        </a>
-        <a href="https://getsafety.com/packages/pypi/pyscoped/" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-1.5 hover:text-gray-900 transition-colors">
-            Safety
-        </a>
-    </div>
-</div>
-
-<!-- Products -->
-<div class="border-t border-gray-200 bg-white">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
-        <h2 class="text-2xl font-bold text-gray-900">Kwip runtimes</h2>
-        <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <a href="{% url 'public:landing' %}" class="block rounded-lg border border-gray-200 p-6 hover:border-brand-300 hover:bg-brand-50/40">
-                <p class="text-sm font-semibold text-gray-900">PyScoped</p>
-                <p class="mt-2 text-sm text-gray-600">
-                    Object isolation, audit trails, access rules, and rollback for Python applications.
-                </p>
-            </a>
-            <a href="{% url 'public:digest' %}" class="block rounded-lg border border-gray-200 p-6 hover:border-brand-300 hover:bg-brand-50/40">
-                <p class="text-sm font-semibold text-gray-900">Digest</p>
-                <p class="mt-2 text-sm text-gray-600">
-                    Self-hosted document extraction API for normalized text and metadata without customer-document storage.
-                </p>
-            </a>
-        </div>
-    </div>
-</div>
-
-<!-- Features -->
-<div class="border-t border-gray-200 bg-gray-50">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
-        <div class="text-center">
-            <h2 class="text-2xl font-bold text-gray-900">Everything your application needs to be trustworthy</h2>
-            <p class="mt-4 text-base text-gray-600">
-                Clerk handles who your users are. Stripe handles their money.
-                scoped handles what they can see, what changed, and who did it.
-            </p>
-        </div>
-        <div class="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {% include "public/_feature_card.html" with title="Tamper-evident audit trails" description="Every operation is recorded in a hash-chained, append-only audit log. Nothing is truly deleted. Every action has a trace." %}
-            {% include "public/_feature_card.html" with title="Object isolation and versioning" description="Every data object is versioned, owned, and isolated by default. Sharing is explicit. Deny always wins." %}
-            {% include "public/_feature_card.html" with title="Your data stays in your database" description="The SDK runs in your infrastructure against your database. We never see your raw data. Only structural metadata is synced." %}
-            {% include "public/_feature_card.html" with title="Point-in-time rollback" description="Reconstruct the state of any object at any point in time. Roll back any action. Nothing is irreversible." %}
-            {% include "public/_feature_card.html" with title="Usage-based pricing" description="Pay for what you use. Active objects, principals, and audit retention. Your SDK never stops working due to billing." %}
-            {% include "public/_feature_card.html" with title="Works with your stack" description="pip install pyscoped. Django, FastAPI, and Flask adapters included. PostgreSQL and SQLite backends. No infrastructure to manage." %}
-        </div>
-    </div>
-</div>
-
-<!-- Architecture -->
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
-    <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900">How scoped works</h2>
+    <div class="max-w-3xl">
+        <p class="text-sm font-semibold uppercase tracking-wide text-brand-600">Kwip technology solutions</p>
+        <h1 class="mt-3 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+            Private infrastructure for document-heavy and audit-sensitive business software
+        </h1>
+        <p class="mt-6 text-lg text-gray-600">
+            Kwip builds self-hosted runtimes, application trust layers, and focused implementation
+            paths for teams that need software to stay private, explainable, and operationally boring.
+        </p>
+        <div class="mt-10 flex flex-wrap gap-4">
+            <a href="#catalog"
+               class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+                View catalog
+            </a>
+            <a href="{% url 'public:digest' %}#pilot"
+               class="rounded-md px-5 py-2.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                Start a Digest pilot
+            </a>
+        </div>
     </div>
-    <div class="mt-16 grid grid-cols-1 gap-12 lg:grid-cols-3">
+</div>
+
+<!-- Catalog -->
+<div id="catalog" class="border-t border-gray-200 bg-gray-50">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+        <div class="max-w-2xl">
+            <h2 class="text-2xl font-bold text-gray-900">Current catalog</h2>
+            <p class="mt-3 text-sm text-gray-600">
+                The catalog is intentionally small: released products first, future infrastructure
+                offerings only after they have a concrete runtime or implementation path.
+            </p>
+        </div>
+        <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <a href="{% url 'public:digest' %}" class="block rounded-lg border border-gray-200 bg-white p-6 hover:border-brand-300 hover:bg-brand-50/40">
+                <p class="text-sm font-semibold uppercase tracking-wide text-brand-600">Released image</p>
+                <h3 class="mt-2 text-xl font-semibold text-gray-900">Digest</h3>
+                <p class="mt-3 text-sm text-gray-600">
+                    Self-hosted document extraction API for normalized text and metadata from PDFs,
+                    Office files, images, text, markup, and ZIP archives.
+                </p>
+                <p class="mt-4 font-mono text-xs text-gray-500">ghcr.io/kwip-info/digest:0.1.0</p>
+            </a>
+            <a id="pyscoped" href="{% url 'public:docs' %}" class="block rounded-lg border border-gray-200 bg-white p-6 hover:border-brand-300 hover:bg-brand-50/40">
+                <p class="text-sm font-semibold uppercase tracking-wide text-brand-600">Python framework</p>
+                <h3 class="mt-2 text-xl font-semibold text-gray-900">PyScoped</h3>
+                <p class="mt-3 text-sm text-gray-600">
+                    Object isolation, audit trails, access rules, versioning, and rollback patterns
+                    for Python applications.
+                </p>
+                <p class="mt-4 font-mono text-xs text-gray-500">pip install pyscoped</p>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Operating principles -->
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+    <h2 class="text-2xl font-bold text-gray-900">How Kwip evaluates product ideas</h2>
+    <div class="mt-10 grid grid-cols-1 gap-8 md:grid-cols-3">
         <div>
-            <p class="text-sm font-semibold text-brand-600">01</p>
-            <h3 class="mt-2 text-lg font-semibold text-gray-900">SDK in your infrastructure</h3>
+            <p class="text-sm font-semibold text-gray-900">Private by default</p>
             <p class="mt-2 text-sm text-gray-600">
-                The scoped SDK runs in your application process. All CRUD, versioning,
-                audit, and access control execute locally against your database.
+                Customer data should remain in the customer's network whenever the problem allows it.
             </p>
         </div>
         <div>
-            <p class="text-sm font-semibold text-brand-600">02</p>
-            <h3 class="mt-2 text-lg font-semibold text-gray-900">Sync agent pushes metadata</h3>
+            <p class="text-sm font-semibold text-gray-900">Auditable boundaries</p>
             <p class="mt-2 text-sm text-gray-600">
-                A lightweight daemon syncs structural metadata to the management plane.
-                Who did what, when, to what type of thing. Never the data itself.
+                Runtimes should expose clear APIs, warnings, versions, and operational controls.
             </p>
         </div>
         <div>
-            <p class="text-sm font-semibold text-brand-600">03</p>
-            <h3 class="mt-2 text-lg font-semibold text-gray-900">Dashboard gives you visibility</h3>
+            <p class="text-sm font-semibold text-gray-900">Enterprise-shaped delivery</p>
             <p class="mt-2 text-sm text-gray-600">
-                The management plane provides audit trail search, compliance reports,
-                usage analytics, and team management. A read-only view into your operations.
+                Docker images, documentation, security review artifacts, and direct implementation support.
             </p>
         </div>
     </div>
@@ -122,14 +87,19 @@
 
 <!-- Bottom CTA -->
 <div class="border-t border-gray-200 bg-gray-50">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <h2 class="text-2xl font-bold text-gray-900">Start building with trust built in</h2>
-        <p class="mt-4 text-base text-gray-600">Free to start. Usage-based pricing as you grow.</p>
-        <div class="mt-8">
-            <a href="{% url 'public:sign_up' %}"
-               class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
-                Get started
-            </a>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
+        <div class="max-w-2xl">
+            <h2 class="text-2xl font-bold text-gray-900">Have a document-heavy workflow that needs to stay private?</h2>
+            <p class="mt-4 text-base text-gray-600">
+                Digest is the current pilot-ready offering. Start there, then use the lessons to shape
+                the next Kwip infrastructure products.
+            </p>
+            <div class="mt-8">
+                <a href="{% url 'public:digest' %}#pilot"
+                   class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+                    Request pilot access
+                </a>
+            </div>
         </div>
     </div>
 </div>

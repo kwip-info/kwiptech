@@ -3,8 +3,13 @@
 import json
 from pathlib import Path
 
+from django.conf import settings
+from django.contrib import messages
+from django.core.mail import send_mail
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+
+from plane.public.forms import DigestPilotForm
 
 
 def _allow_crawlers(response):
@@ -36,7 +41,45 @@ def pricing(request):
 
 
 def digest(request):
-    return render(request, "public/digest.html")
+    if request.method == "POST":
+        form = DigestPilotForm(request.POST)
+        if form.is_valid():
+            _send_digest_lead(form.cleaned_data)
+            messages.success(
+                request,
+                "Thanks. We received your Digest pilot request and will follow up by email.",
+            )
+            return redirect("public:digest")
+    else:
+        form = DigestPilotForm()
+    return render(request, "public/digest.html", {"pilot_form": form})
+
+
+def _send_digest_lead(data):
+    subject = f"Digest pilot request: {data['company']}"
+    body = "\n".join(
+        [
+            "New Digest pilot request",
+            "",
+            f"Name: {data['name']}",
+            f"Email: {data['email']}",
+            f"Company: {data['company']}",
+            f"Role: {data.get('role') or '-'}",
+            f"Document types: {data.get('document_types') or '-'}",
+            f"Deployment target: {data.get('deployment_target') or '-'}",
+            f"Timeline: {data.get('timeline') or '-'}",
+            "",
+            "Use case:",
+            data["use_case"],
+        ]
+    )
+    send_mail(
+        subject,
+        body,
+        settings.DEFAULT_FROM_EMAIL,
+        [settings.DIGEST_LEAD_EMAIL],
+        fail_silently=False,
+    )
 
 
 def status(request):

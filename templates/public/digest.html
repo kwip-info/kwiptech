@@ -15,9 +15,9 @@
                 business documents, images, PDFs, and archives.
             </p>
             <div class="mt-8 flex flex-wrap gap-3">
-                <a href="mailto:contact@kwip.info?subject=Digest%20runtime"
+                <a href="#pilot"
                    class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
-                    Request access
+                    Request pilot access
                 </a>
                 <a href="{% url 'public:docs_page' 'platform/digest-runtime.md' %}"
                    class="rounded-md px-5 py-2.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
@@ -86,6 +86,80 @@
             Private registry access is granted to licensed customers. Production deployments should
             pin the exact image digest from the release channel.
         </p>
+    </section>
+
+    <section id="pilot" class="mt-16 border-t border-gray-200 pt-16">
+        <div class="grid grid-cols-1 gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">Start a paid pilot</h2>
+                <p class="mt-3 text-sm text-gray-600">
+                    Digest pilots are manual and focused. We use the first call to confirm document
+                    types, deployment target, security requirements, and whether deterministic
+                    extraction is the right boundary before AI, search, compliance, or automation.
+                </p>
+                <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    <p class="font-semibold text-gray-900">Typical pilot shape</p>
+                    <p class="mt-2">$1,500-$3,000 for 90 days, credited toward an annual license.</p>
+                    <p class="mt-2">Includes GHCR access, onboarding, email support, and security docs.</p>
+                </div>
+            </div>
+            <form method="post" class="rounded-lg border border-gray-200 bg-white p-6">
+                {% csrf_token %}
+                {{ pilot_form.website }}
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label for="{{ pilot_form.name.id_for_label }}" class="block text-sm font-medium text-gray-900">Name</label>
+                        <input type="text" name="{{ pilot_form.name.html_name }}" id="{{ pilot_form.name.id_for_label }}" value="{{ pilot_form.name.value|default:'' }}" required class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                        {% if pilot_form.name.errors %}<p class="mt-1 text-xs text-red-600">{{ pilot_form.name.errors|striptags }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ pilot_form.email.id_for_label }}" class="block text-sm font-medium text-gray-900">Work email</label>
+                        <input type="email" name="{{ pilot_form.email.html_name }}" id="{{ pilot_form.email.id_for_label }}" value="{{ pilot_form.email.value|default:'' }}" required class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                        {% if pilot_form.email.errors %}<p class="mt-1 text-xs text-red-600">{{ pilot_form.email.errors|striptags }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ pilot_form.company.id_for_label }}" class="block text-sm font-medium text-gray-900">Company</label>
+                        <input type="text" name="{{ pilot_form.company.html_name }}" id="{{ pilot_form.company.id_for_label }}" value="{{ pilot_form.company.value|default:'' }}" required class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                        {% if pilot_form.company.errors %}<p class="mt-1 text-xs text-red-600">{{ pilot_form.company.errors|striptags }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ pilot_form.role.id_for_label }}" class="block text-sm font-medium text-gray-900">Role</label>
+                        <input type="text" name="{{ pilot_form.role.html_name }}" id="{{ pilot_form.role.id_for_label }}" value="{{ pilot_form.role.value|default:'' }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label for="{{ pilot_form.document_types.id_for_label }}" class="block text-sm font-medium text-gray-900">Document types</label>
+                        <input type="text" name="{{ pilot_form.document_types.html_name }}" id="{{ pilot_form.document_types.id_for_label }}" value="{{ pilot_form.document_types.value|default:'' }}" placeholder="PDFs, DOCX, scans, ZIPs" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label for="{{ pilot_form.deployment_target.id_for_label }}" class="block text-sm font-medium text-gray-900">Deployment target</label>
+                        <select name="{{ pilot_form.deployment_target.html_name }}" id="{{ pilot_form.deployment_target.id_for_label }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                            {% for value, label in pilot_form.deployment_target.field.choices %}
+                            <option value="{{ value }}" {% if pilot_form.deployment_target.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="{{ pilot_form.timeline.id_for_label }}" class="block text-sm font-medium text-gray-900">Timeline</label>
+                        <select name="{{ pilot_form.timeline.html_name }}" id="{{ pilot_form.timeline.id_for_label }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                            {% for value, label in pilot_form.timeline.field.choices %}
+                            <option value="{{ value }}" {% if pilot_form.timeline.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label for="{{ pilot_form.use_case.id_for_label }}" class="block text-sm font-medium text-gray-900">Use case</label>
+                    <textarea name="{{ pilot_form.use_case.html_name }}" id="{{ pilot_form.use_case.id_for_label }}" rows="5" required class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">{{ pilot_form.use_case.value|default:'' }}</textarea>
+                    {% if pilot_form.use_case.errors %}<p class="mt-1 text-xs text-red-600">{{ pilot_form.use_case.errors|striptags }}</p>{% endif %}
+                </div>
+                {% if pilot_form.non_field_errors %}
+                <p class="mt-3 text-sm text-red-600">{{ pilot_form.non_field_errors|striptags }}</p>
+                {% endif %}
+                <button type="submit" class="mt-5 rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+                    Send pilot request
+                </button>
+            </form>
+        </div>
     </section>
 </div>
 {% endblock %}
