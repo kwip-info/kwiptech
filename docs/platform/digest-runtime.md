@@ -54,3 +54,29 @@ The MVP runtime supports text, markup, PDF native text and OCR fallback, office 
 OCR, and opt-in ZIP archive extraction. Release-candidate controls include PDF page limits,
 read-only runtime verification, SBOM generation, license inventory, vulnerability scanner wrapper,
 and a release checklist.
+
+## Current Image
+
+```text
+ghcr.io/kwip-info/digest:0.1.0
+```
+
+Private registry access is the entitlement gate. The container keeps running after a subscription
+expires; expiration only removes access to new images, patches, and support.
+
+Customer pull test:
+
+```bash
+docker login ghcr.io
+docker pull ghcr.io/kwip-info/digest:0.1.0
+docker run --rm \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=1g \
+  --cap-drop ALL \
+  --security-opt no-new-privileges:true \
+  -p 8080:8080 \
+  --env-file .env.example \
+  ghcr.io/kwip-info/digest:0.1.0
+```
+
+Use immutable digests for production deployments. Moving tags are for release-channel discovery.
