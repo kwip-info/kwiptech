@@ -5,6 +5,10 @@
  */
 
 /* HTMX swap transitions */
+[x-cloak] {
+    display: none !important;
+}
+
 .htmx-settling {
     opacity: 0;
 }
