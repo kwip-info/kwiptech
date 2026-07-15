@@ -48,7 +48,8 @@ class PricingPageTest(TestCase):
     def test_contains_digest_runtime_pricing(self):
         response = self.client.get("/pricing")
         self.assertContains(response, "Digest runtime licensing")
-        self.assertContains(response, "$3,000-$7,500")
+        self.assertContains(response, "$6,000")
+        self.assertContains(response, "Paid pilot: $2,500 for 90 days")
 
 
 class DigestPageTest(TestCase):
@@ -62,6 +63,7 @@ class DigestPageTest(TestCase):
         self.assertContains(response, "Universal Document Extraction Runtime")
         self.assertContains(response, "No document storage")
         self.assertContains(response, "Start a paid pilot")
+        self.assertContains(response, "$2,500 for 90 days")
 
     def test_links_to_docs(self):
         response = self.client.get("/digest")
