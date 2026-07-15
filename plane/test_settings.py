@@ -20,6 +20,7 @@ MIDDLEWARE = [  # noqa: F811
     mw for mw in MIDDLEWARE
     if mw not in (
         "scoped.contrib.django.middleware.ScopedContextMiddleware",
+        "plane.middleware.PlatformScopedContextMiddleware",
         "plane.auth.middleware.ClerkAuthMiddleware",
     )
 ]

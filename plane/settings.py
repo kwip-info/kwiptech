@@ -54,7 +54,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # pyscoped context injection — attributes every request to a principal
-    "scoped.contrib.django.middleware.ScopedContextMiddleware",
+    "plane.middleware.PlatformScopedContextMiddleware",
 ]
 
 ROOT_URLCONF = "plane.urls"
@@ -187,6 +187,11 @@ SCOPED_EXEMPT_PATHS = [
     "/webhooks/",
     "/robots.txt", "/llms.txt",
 ]
+
+# Prefix matching cannot safely represent the site root: every URL starts
+# with "/". Keep the static landing page independent of the database without
+# exempting authenticated application routes.
+SCOPED_EXEMPT_EXACT_PATHS = ["/"]
 
 # ---------------------------------------------------------------------------
 # Static files
