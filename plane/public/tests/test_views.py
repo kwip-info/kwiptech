@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import TestCase
+
+from plane.public.models import DigestPilotLead
 
 
 class LandingPageTest(TestCase):
@@ -66,11 +67,7 @@ class DigestPageTest(TestCase):
         response = self.client.get("/digest")
         self.assertContains(response, "/docs/platform/digest-runtime.md")
 
-    @override_settings(
-        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-        DIGEST_LEAD_EMAIL="sales@example.com",
-    )
-    def test_pilot_form_sends_email(self):
+    def test_pilot_form_creates_admin_visible_lead(self):
         response = self.client.post(
             "/digest",
             {
@@ -88,19 +85,20 @@ class DigestPageTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/digest")
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["sales@example.com"])
-        self.assertIn("Digest pilot request: ExampleCo", mail.outbox[0].subject)
-        self.assertIn("Taylor Morgan", mail.outbox[0].body)
-        self.assertIn("PDFs and scanned images", mail.outbox[0].body)
+        lead = DigestPilotLead.objects.get()
+        self.assertEqual(lead.name, "Taylor Morgan")
+        self.assertEqual(lead.email, "taylor@example.com")
+        self.assertEqual(lead.company, "ExampleCo")
+        self.assertEqual(lead.document_types, "PDFs and scanned images")
+        self.assertEqual(lead.deployment_target, "kubernetes")
+        self.assertEqual(lead.status, DigestPilotLead.Status.NEW)
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_pilot_form_requires_core_fields(self):
         response = self.client.post("/digest", {"website": ""})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "This field is required")
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(DigestPilotLead.objects.count(), 0)
 
 
 class StatusPageTest(TestCase):
@@ -126,7 +124,7 @@ class SecurityPageTest(TestCase):
 
     def test_contains_architecture_section(self):
         response = self.client.get("/security")
-        self.assertContains(response, "Architecture")
+        self.assertContains(response, "Product security architecture")
 
     def test_contains_data_residency(self):
         response = self.client.get("/security")

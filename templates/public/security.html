@@ -1,27 +1,27 @@
 {% extends "_layouts/public.html" %}
 
-{% block title %}Security - scoped{% endblock %}
+{% block title %}Security - Kwip{% endblock %}
 
 {% block page_content %}
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
     <div class="text-center">
         <h1 class="text-3xl font-bold tracking-tight text-gray-900">Security and trust</h1>
         <p class="mx-auto mt-4 max-w-2xl text-base text-gray-600">
-            scoped is built on the principle that your data belongs in your infrastructure.
-            We designed every layer to enforce this guarantee.
+            Kwip products are built around private deployment, auditable control
+            boundaries, and minimal data movement.
         </p>
     </div>
 
     <div class="mt-16 space-y-16">
         <!-- Architecture -->
         <section>
-            <h2 class="text-xl font-bold text-gray-900">Architecture</h2>
+            <h2 class="text-xl font-bold text-gray-900">Product security architecture</h2>
             <div class="mt-4 prose prose-gray max-w-none">
                 <p class="text-sm text-gray-600">
-                    The scoped SDK runs entirely in your application process, against your
-                    database. All CRUD operations, versioning, audit trail recording, access
-                    control, and rule evaluation execute locally. The management plane is a
-                    read-only view — it never writes to your database and cannot modify your data.
+                    Kwip separates product control planes from customer data planes wherever
+                    possible. Digest runs inside the customer's network and does not send
+                    documents to Kwip. PyScoped runs in the customer's application process and
+                    syncs operational metadata to the platform without object payloads.
                 </p>
             </div>
         </section>
@@ -40,24 +40,47 @@
             </div>
         </section>
 
+        <!-- Release boundary -->
+        <section>
+            <h2 class="text-xl font-bold text-gray-900">Release and supply chain</h2>
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Private image distribution</h3>
+                    <p class="mt-1 text-sm text-gray-600">Digest images are distributed through a private registry to licensed customers with explicit access.</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Pinned runtime versions</h3>
+                    <p class="mt-1 text-sm text-gray-600">Production deployments should pin immutable image digests rather than floating tags.</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">SBOM and license checks</h3>
+                    <p class="mt-1 text-sm text-gray-600">Release automation verifies Python package licenses and generates image metadata for review.</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Vulnerability scanning</h3>
+                    <p class="mt-1 text-sm text-gray-600">Container releases are scanned before publication so dependency and base-image issues are visible.</p>
+                </div>
+            </div>
+        </section>
+
         <!-- Data residency -->
         <section>
             <h2 class="text-xl font-bold text-gray-900">Data residency</h2>
             <div class="mt-4 prose prose-gray max-w-none">
                 <p class="text-sm text-gray-600">
-                    Your application data never leaves your infrastructure. The sync agent
-                    pushes only structural metadata to the management plane: who performed an
-                    action, when, on what type of object, and the chain hash for integrity
-                    verification. Object data payloads (the <code class="text-xs">before_state</code>
-                    and <code class="text-xs">after_state</code> fields) are deliberately excluded
-                    from sync. Your data stays in your database, under your control.
+                    Digest documents are processed by the customer-hosted runtime, not uploaded
+                    to Kwip. PyScoped application data remains in the customer's infrastructure;
+                    its sync path sends structural metadata such as actor, object type, timestamp,
+                    operation, and chain hash. Object data payloads such as
+                    <code class="text-xs">before_state</code> and
+                    <code class="text-xs">after_state</code> are deliberately excluded from sync.
                 </p>
             </div>
         </section>
 
         <!-- Sync security -->
         <section>
-            <h2 class="text-xl font-bold text-gray-900">Sync security</h2>
+            <h2 class="text-xl font-bold text-gray-900">PyScoped sync security</h2>
             <div class="mt-4 space-y-3">
                 <div class="rounded-lg border border-gray-200 bg-white p-4">
                     <h3 class="text-sm font-semibold text-gray-900">TLS encryption</h3>
@@ -78,29 +101,37 @@
             </div>
         </section>
 
-        <!-- Secrets at rest -->
+        <!-- Runtime hardening -->
         <section>
-            <h2 class="text-xl font-bold text-gray-900">Secrets at rest</h2>
-            <div class="mt-4 prose prose-gray max-w-none">
-                <p class="text-sm text-gray-600">
-                    API keys are encrypted at rest using scoped's built-in secrets vault
-                    (AES-128-CBC with HMAC-SHA256 via Fernet). Plaintext keys are shown
-                    exactly once at creation time through a short-lived, audited access
-                    reference. Every access attempt is logged — you can see exactly who
-                    viewed a key and when. After the reveal, the plaintext is
-                    inaccessible. We use the same secrets vault we sell to protect our
-                    own credentials.
-                </p>
+            <h2 class="text-xl font-bold text-gray-900">Digest runtime hardening</h2>
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Container isolation</h3>
+                    <p class="mt-1 text-sm text-gray-600">Digest is designed to run with restricted container privileges such as dropped capabilities and no-new-privileges.</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Controlled scratch space</h3>
+                    <p class="mt-1 text-sm text-gray-600">Operators can mount temporary extraction storage explicitly and avoid persistent customer-document storage in Kwip systems.</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">No GPU dependency</h3>
+                    <p class="mt-1 text-sm text-gray-600">Digest does not require GPU access or a hosted generative AI service to perform extraction.</p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                    <h3 class="text-sm font-semibold text-gray-900">Customer-controlled network</h3>
+                    <p class="mt-1 text-sm text-gray-600">Customers decide where the runtime can listen and what internal systems can call it.</p>
+                </div>
             </div>
         </section>
 
         <!-- Invariants -->
         <section>
-            <h2 class="text-xl font-bold text-gray-900">Compliance invariants</h2>
+            <h2 class="text-xl font-bold text-gray-900">PyScoped compliance invariants</h2>
             <div class="mt-4 prose prose-gray max-w-none">
                 <p class="text-sm text-gray-600">
-                    The scoped framework enforces ten absolute guarantees at every layer.
-                    These invariants are checked by the compliance engine and cannot be bypassed.
+                    PyScoped is the authorization and audit product in the Kwip catalog.
+                    Its core framework enforces invariants for registered objects, identity,
+                    access decisions, versioning, revocation, and audit traceability.
                 </p>
             </div>
             <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">

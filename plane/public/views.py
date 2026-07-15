@@ -3,13 +3,12 @@
 import json
 from pathlib import Path
 
-from django.conf import settings
 from django.contrib import messages
-from django.core.mail import send_mail
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 
 from plane.public.forms import DigestPilotForm
+from plane.public.models import DigestPilotLead
 
 
 def _allow_crawlers(response):
@@ -44,7 +43,16 @@ def digest(request):
     if request.method == "POST":
         form = DigestPilotForm(request.POST)
         if form.is_valid():
-            _send_digest_lead(form.cleaned_data)
+            DigestPilotLead.objects.create(
+                name=form.cleaned_data["name"],
+                email=form.cleaned_data["email"],
+                company=form.cleaned_data["company"],
+                role=form.cleaned_data.get("role", ""),
+                document_types=form.cleaned_data.get("document_types", ""),
+                deployment_target=form.cleaned_data.get("deployment_target", ""),
+                timeline=form.cleaned_data.get("timeline", ""),
+                use_case=form.cleaned_data["use_case"],
+            )
             messages.success(
                 request,
                 "Thanks. We received your Digest pilot request and will follow up by email.",
@@ -53,33 +61,6 @@ def digest(request):
     else:
         form = DigestPilotForm()
     return render(request, "public/digest.html", {"pilot_form": form})
-
-
-def _send_digest_lead(data):
-    subject = f"Digest pilot request: {data['company']}"
-    body = "\n".join(
-        [
-            "New Digest pilot request",
-            "",
-            f"Name: {data['name']}",
-            f"Email: {data['email']}",
-            f"Company: {data['company']}",
-            f"Role: {data.get('role') or '-'}",
-            f"Document types: {data.get('document_types') or '-'}",
-            f"Deployment target: {data.get('deployment_target') or '-'}",
-            f"Timeline: {data.get('timeline') or '-'}",
-            "",
-            "Use case:",
-            data["use_case"],
-        ]
-    )
-    send_mail(
-        subject,
-        body,
-        settings.DEFAULT_FROM_EMAIL,
-        [settings.DIGEST_LEAD_EMAIL],
-        fail_silently=False,
-    )
 
 
 def status(request):

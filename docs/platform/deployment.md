@@ -64,18 +64,6 @@ The platform uses `dj-database-url` to parse `DATABASE_URL` into Django's `DATAB
 | `STRIPE_TEAM_PRICE_ID`        | Yes      | --      | Stripe Price ID for the Team plan.                         |
 | `STRIPE_ENTERPRISE_PRICE_ID`  | Yes      | --      | Stripe Price ID for the Enterprise plan.                   |
 
-### Email
-
-| Variable          | Required | Default                     | Description                                         |
-|-------------------|----------|-----------------------------|-----------------------------------------------------|
-| `EMAIL_BACKEND`   | No       | `django.core.mail.backends.console.EmailBackend` | Email backend class. Use `smtp.EmailBackend` in production. |
-| `EMAIL_HOST`      | No       | `localhost`                 | SMTP server hostname.                               |
-| `EMAIL_PORT`      | No       | `587`                       | SMTP server port.                                   |
-| `EMAIL_HOST_USER` | No       | --                          | SMTP authentication username.                       |
-| `EMAIL_HOST_PASSWORD` | No   | --                          | SMTP authentication password.                       |
-| `EMAIL_USE_TLS`   | No       | `True`                      | Enable TLS for SMTP connections.                    |
-| `DEFAULT_FROM_EMAIL` | No    | `noreply@kwip.info`         | Default sender address for outgoing email.          |
-
 ### pyscoped Library
 
 | Variable            | Required | Default       | Description                                              |

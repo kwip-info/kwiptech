@@ -218,16 +218,6 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 # ---------------------------------------------------------------------------
-# Email
-# ---------------------------------------------------------------------------
-
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
-)
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@kwip.info")
-DIGEST_LEAD_EMAIL = os.environ.get("DIGEST_LEAD_EMAIL", "contact@kwip.info")
-
-# ---------------------------------------------------------------------------
 # i18n
 # ---------------------------------------------------------------------------
 
