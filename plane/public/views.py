@@ -35,6 +35,10 @@ def pricing(request):
     return render(request, "public/pricing.html")
 
 
+def digest(request):
+    return render(request, "public/digest.html")
+
+
 def status(request):
     return render(request, "public/status.html")
 
@@ -373,6 +377,8 @@ def llms_txt(request):
 ## Docs
 
 - [Documentation hub]({base}/docs): SDK reference, platform guides, integration examples
+- [Digest runtime]({base}/digest): Self-hosted document extraction runtime
+- [Digest runtime docs]({base}/docs/platform/digest-runtime.md): Runtime boundary, deployment, and pricing model
 - [SDK docs index]({base}/docs/manifest.json): Machine-readable SDK docs manifest
 - [Platform docs index]({base}/docs/platform/manifest.json): Machine-readable platform docs manifest
 

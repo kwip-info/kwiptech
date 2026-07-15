@@ -1,0 +1,82 @@
+{% extends "_layouts/public.html" %}
+
+{% block title %}Digest - Universal Document Extraction Runtime{% endblock %}
+
+{% block page_content %}
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+    <div class="grid grid-cols-1 gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div>
+            <p class="text-sm font-semibold uppercase tracking-wide text-brand-600">Digest by Kwip</p>
+            <h1 class="mt-3 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+                Universal Document Extraction Runtime
+            </h1>
+            <p class="mt-6 max-w-2xl text-lg text-gray-600">
+                A private, self-hosted API for extracting normalized text and metadata from
+                business documents, images, PDFs, and archives.
+            </p>
+            <div class="mt-8 flex flex-wrap gap-3">
+                <a href="mailto:contact@kwip.info?subject=Digest%20runtime"
+                   class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-500">
+                    Request access
+                </a>
+                <a href="{% url 'public:docs_page' 'platform/digest-runtime.md' %}"
+                   class="rounded-md px-5 py-2.5 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+                    Read docs
+                </a>
+            </div>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-6">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div class="rounded-md bg-white p-4 ring-1 ring-gray-200">
+                    <p class="font-semibold text-gray-900">Runs locally</p>
+                    <p class="mt-1 text-gray-600">Docker deployment inside the customer's network.</p>
+                </div>
+                <div class="rounded-md bg-white p-4 ring-1 ring-gray-200">
+                    <p class="font-semibold text-gray-900">No hosted AI</p>
+                    <p class="mt-1 text-gray-600">No generative model, GPU, or paid document API.</p>
+                </div>
+                <div class="rounded-md bg-white p-4 ring-1 ring-gray-200">
+                    <p class="font-semibold text-gray-900">No document storage</p>
+                    <p class="mt-1 text-gray-600">Customer files stay in customer-controlled runtime storage.</p>
+                </div>
+                <div class="rounded-md bg-white p-4 ring-1 ring-gray-200">
+                    <p class="font-semibold text-gray-900">Broad formats</p>
+                    <p class="mt-1 text-gray-600">Text, markup, office, PDF, OCR images, and ZIP archives.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="mt-20 border-t border-gray-200 pt-16">
+        <h2 class="text-2xl font-bold text-gray-900">What Digest provides</h2>
+        <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">Stable extraction API</h3>
+                <p class="mt-2 text-sm text-gray-600">
+                    Normalized text, metadata, page details, warnings, and extractor provenance behind one HTTP contract.
+                </p>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">Commercial maintenance boundary</h3>
+                <p class="mt-2 text-sm text-gray-600">
+                    Curated open-source extractors packaged with compatibility tests, updates, and release documentation.
+                </p>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900">Control-plane only platform fit</h3>
+                <p class="mt-2 text-sm text-gray-600">
+                    Kwip can expose docs, image tags, and update access without routing customer documents through the platform.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="mt-16 rounded-lg border border-gray-200 bg-white p-6">
+        <h2 class="text-lg font-semibold text-gray-900">Economic model</h2>
+        <p class="mt-2 text-sm text-gray-600">
+            Digest is priced for distribution and maintenance rights, not page volume. Customers provide the compute,
+            so the claim is near-zero marginal compute cost and no customer-document storage cost.
+        </p>
+    </section>
+</div>
+{% endblock %}

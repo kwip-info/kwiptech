@@ -8,6 +8,7 @@ app_name = "public"
 
 urlpatterns = [
     path("", views.landing, name="landing"),
+    path("digest", views.digest, name="digest"),
     path("pricing", views.pricing, name="pricing"),
     path("status", views.status, name="status"),
     path("security", views.security, name="security"),

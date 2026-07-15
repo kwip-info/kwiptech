@@ -42,6 +42,27 @@ class PricingPageTest(TestCase):
         response = self.client.get("/pricing")
         self.assertContains(response, "never billed")
 
+    def test_contains_digest_runtime_pricing(self):
+        response = self.client.get("/pricing")
+        self.assertContains(response, "Digest runtime licensing")
+        self.assertContains(response, "$3,000-$7,500")
+
+
+class DigestPageTest(TestCase):
+
+    def test_returns_200(self):
+        response = self.client.get("/digest")
+        assert response.status_code == 200
+
+    def test_contains_positioning(self):
+        response = self.client.get("/digest")
+        self.assertContains(response, "Universal Document Extraction Runtime")
+        self.assertContains(response, "No document storage")
+
+    def test_links_to_docs(self):
+        response = self.client.get("/digest")
+        self.assertContains(response, "/docs/platform/digest-runtime.md")
+
 
 class StatusPageTest(TestCase):
 
@@ -71,6 +92,10 @@ class SecurityPageTest(TestCase):
     def test_contains_data_residency(self):
         response = self.client.get("/security")
         self.assertContains(response, "Data residency")
+
+    def test_contains_digest_runtime_boundary(self):
+        response = self.client.get("/security")
+        self.assertContains(response, "Digest runtime boundary")
 
     def test_contains_invariants(self):
         response = self.client.get("/security")
@@ -180,8 +205,19 @@ class CrawlerDiscoveryTest(TestCase):
         body = resp.content.decode()
         self.assertIn("/docs/claude.md", body)
         self.assertIn("/docs/agents.md", body)
+        self.assertIn("/digest", body)
+        self.assertIn("/docs/platform/digest-runtime.md", body)
 
     def test_discovery_files_are_crawlable(self):
         for url in ("/robots.txt", "/llms.txt"):
             resp = self.client.get(url)
             self.assertEqual(resp["X-Robots-Tag"], "all", url)
+
+
+class PlatformDocsManifestTest(TestCase):
+
+    def test_includes_digest_runtime_doc(self):
+        resp = self.client.get("/docs/platform/manifest.json")
+        assert resp.status_code == 200
+        page_paths = [page["path"] for page in resp.json()["pages"]]
+        self.assertIn("digest-runtime.md", page_paths)
