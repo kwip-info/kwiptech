@@ -48,6 +48,11 @@ The correct economic claim is near-zero marginal compute cost and no customer-do
 cost. Do not claim zero cost; Kwip still bears registry transfer, build infrastructure, security
 scanning, signing, provenance, dependency update, support, documentation, and compliance costs.
 
+The standard paid pilot is $2,500 for 90 days. It covers one organization and up to two deployments,
+with two onboarding sessions, eight support hours, and release security documentation. The full
+pilot fee is credited toward the first $6,000 annual Business term when signed within 30 days after
+pilot completion.
+
 ## Runtime Status
 
 The MVP runtime supports text, markup, PDF native text and OCR fallback, office formats, image

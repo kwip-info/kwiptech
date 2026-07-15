@@ -12,7 +12,12 @@
 - Signed private GHCR image, SBOM/license artifacts, vulnerability scan, and release notes.
 - Pricing is for distribution and maintenance rights, not page volume.
 
-**Pilot offer:** $1,500-$3,000 for 90 days, credited toward annual license.
+**Pilot offer:** $2,500 paid upfront for 90 days. The full fee is credited toward the first $6,000
+annual Business term when signed within 30 days after pilot completion.
+
+The pilot covers one organization and up to two deployments. It includes private GHCR access, two
+onboarding sessions, eight support hours, email support during US Central business hours, and the
+release security package. It excludes redistribution and OEM rights.
 
 ## Cold Call Opener
 
@@ -63,8 +68,9 @@ The security posture is intentionally simple:
 - private GHCR image access;
 - signed image, SBOM/license artifacts, and vulnerability scan.
 
-The pilot shape we discussed is a 90-day paid pilot, usually $1,500-$3,000 and credited toward an
-annual license if it moves forward.
+The pilot is $2,500 paid upfront for 90 days. It includes private image access, two onboarding
+sessions, eight support hours, and release security documentation. If you sign the $6,000 annual
+Business license within 30 days after the pilot, the full pilot fee is credited to the first term.
 
 Useful links:
 
