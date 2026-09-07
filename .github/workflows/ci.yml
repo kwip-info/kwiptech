@@ -24,7 +24,7 @@ jobs:
       - run: pip install ruff
       - run: ruff check plane/ uat/ --select E,W,F --ignore E402,E501,E731,E741
 
-      - run: node --check static/market/app.js
+      - run: node --check static/market/app.js && node --check static/market/theme.js
 
   test:
     runs-on: ubuntu-latest
