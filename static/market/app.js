@@ -115,13 +115,41 @@
     $('#jobs-auth-hint').hidden=true;
     const rows=result.records, summary=result.summary||{records:0,companies:0,with_pay:0};
     root.innerHTML=`<p class="tag">${esc(result.notice)}</p><div class="stats"><section class="panel"><p class="eyebrow">SAMPLE RECORDS</p><div class="stat">${number(summary.records)}</div></section><section class="panel"><p class="eyebrow">COMPANIES</p><div class="stat">${number(summary.companies)}</div></section><section class="panel"><p class="eyebrow">WITH STATED PAY</p><div class="stat">${number(summary.with_pay)}</div></section></div>
-      <section class="panel"><h2>Standardized postings</h2><p>Remote roles explicitly listing US eligibility. This is not a representative US market sample. Missing listings do not indicate closure.</p><label for="jobs-filter">Find a title or company in this sample</label><input id="jobs-filter" type="search" placeholder="Title or company" maxlength="100"><div id="jobs-rows"></div></section>
+      <section class="panel"><h2>Standardized postings</h2><p>Remote roles explicitly listing US eligibility. This is not a representative US market sample. Missing listings do not indicate closure.</p><label for="jobs-filter">Find a title or company in this sample</label><input id="jobs-filter" type="search" placeholder="Title or company" maxlength="100"><div class="inline"><div><label for="jobs-page-size">Records per page</label><select id="jobs-page-size"><option value="5">5</option><option value="10">10</option><option value="20">20</option></select></div></div><div id="jobs-rows"></div><nav class="inline" aria-label="Job pages"><button id="jobs-prev" type="button">Previous</button><span id="jobs-page-status" role="status"></span><button id="jobs-next" type="button">Next</button></nav><section id="job-details" class="panel" tabindex="-1" aria-label="Selected job details" hidden></section></section>
       <section class="panel"><h2>Sources & update plan</h2><p>Refreshes are manual and limited to once per 24 hours. Next permitted collection: ${result.next_allowed_at?esc(new Date(result.next_allowed_at).toLocaleString()):'Not collected yet'}.</p><p>Source discovery review: ${esc(result.discovery.next_review_on)} · every ${esc(result.discovery.cadence_days)} days. New sources require review before collection.</p>
       ${table(['Source','Status','Attribution or next step'],result.sources.map(s=>[`<a href="${esc(safeURL(s.attribution_url||s.url))}" rel="noopener noreferrer">${esc(s.name)} ↗</a>`,esc(s.status),esc(s.attribution||s.blocker)]))}</section>
       <section class="panel"><h2>Collection receipts</h2>${result.runs.length?table(['Attempt','Result','Accepted / examined','Upstream requests'],result.runs.map(r=>[esc(new Date(r.started_at).toLocaleString()),esc(r.status)+(r.summary.error?'<br>'+esc(r.summary.error):''),`${number(r.summary.accepted||0)} / ${number(r.summary.examined||0)}`,`${number(r.summary.data_requests||0)} data · ${number(r.summary.robots_requests||0)} robots`])):'<p>No collection attempts yet.</p>'}</section>`;
     const salary=d=>{if(!d.salary_currency)return 'Not supplied with currency and period';const amount=d.salary_min!==undefined&&d.salary_max!==undefined?number(d.salary_min)+'–'+number(d.salary_max):d.salary_min!==undefined?'from '+number(d.salary_min):'up to '+number(d.salary_max);return esc(d.salary_currency+' '+amount+' / '+d.salary_period);};
-    function render(){const q=$('#jobs-filter').value.toLowerCase();const filtered=rows.filter(r=>(r.data.title+' '+r.data.company).toLowerCase().includes(q));$('#jobs-rows').innerHTML=filtered.length?table(['Role & company','Eligibility','Stated pay','Source & observation'],filtered.map(r=>[`<strong>${esc(r.data.title)}</strong><br>${esc(r.data.company)}<br><small>${esc(r.data.employment_type||'')}</small>`,esc(r.data.location_restrictions)+(r.data.timezone_restrictions?'<br><small>Time zones: '+esc(r.data.timezone_restrictions)+'</small>':''),salary(r.data),`<a href="${esc(safeURL(r.source_url))}" rel="noopener noreferrer">${esc(r.source.name)} original listing ↗</a><br><small>Observed ${esc(new Date(r.observed_at).toLocaleString())}<br>${esc(r.data.source_status==='past_source_expiry'?'Past source expiry; availability unverified':'Listed at observation; current availability unverified')}</small>`])):'<div class="empty"><h3>'+ (rows.length?'No matching postings.':'No sample available yet.')+'</h3><p>'+(rows.length?'Try another title or company.':'A collection may be pending, expired or awaiting source review.')+'</p></div>';}
-    $('#jobs-filter').oninput=render;render();
+    const dateText=value=>value?new Date(value).toLocaleString():'Not supplied';
+    let page=0;
+    function showDetails(row,button){
+      const d=row.data,panel=$('#job-details');
+      panel.hidden=false;
+      panel.innerHTML=`<div class="section-heading"><h2>${esc(d.title)}</h2><button id="job-details-close" type="button">Close details</button></div><p>${esc(d.company)} · ${esc(d.employment_type||'Employment type not supplied')}</p>
+        <dl class="job-facts"><dt>Published by source</dt><dd>${esc(dateText(d.published_at))}</dd><dt>Source expiry</dt><dd>${esc(dateText(d.expires_at))}</dd><dt>Observed by KWIP</dt><dd>${esc(dateText(row.observed_at))}</dd><dt>Location eligibility</dt><dd>${esc(d.location_restrictions)}</dd><dt>Time zone restrictions</dt><dd>${esc(d.timezone_restrictions||'Not supplied')}</dd><dt>Stated compensation</dt><dd>${salary(d)}</dd></dl>
+        <h3>Description</h3>${d.description?`<p class="job-description">${esc(d.description)}</p>${d.description_truncated?'<p class="quiet">Description shortened to 20,000 characters. Read the original for the full text.</p>':''}`:`<p class="quiet">${d.normalization_version<2?'Descriptions were not retained in the initial sample. They can appear after the next permitted refresh.':'The source did not supply a usable description.'}</p>`}
+        <p><a href="${esc(safeURL(row.source_url))}" rel="noopener noreferrer">Read the original listing on ${esc(row.source.name)} ↗</a></p><p class="quiet">${esc(row.source.attribution)}</p><p class="quiet">Source expiry does not prove the role was filled. Dates reflect the source and our observation, not a verified hiring outcome.</p>`;
+      $('#job-details-close').onclick=()=>{panel.hidden=true;button.focus();};
+      panel.focus({preventScroll:true});panel.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    function render(){
+      const q=$('#jobs-filter').value.toLowerCase(),size=Number($('#jobs-page-size').value);
+      const filtered=rows.filter(r=>(r.data.title+' '+r.data.company).toLowerCase().includes(q));
+      const pages=Math.max(1,Math.ceil(filtered.length/size));page=Math.min(page,pages-1);
+      const visible=filtered.slice(page*size,(page+1)*size);
+      $('#job-details').hidden=true;
+      $('#jobs-rows').innerHTML=visible.length?table(['Role & company','Eligibility','Stated pay','Dates & source'],visible.map((r,i)=>[
+        `<strong>${esc(r.data.title)}</strong><br>${esc(r.data.company)}<br><small>${esc(r.data.employment_type||'')}</small><br><button type="button" class="job-detail-button" data-job-index="${i}" aria-label="View details: ${esc(r.data.title)}">View details</button>`,
+        esc(r.data.location_restrictions),salary(r.data),
+        `<small>Published ${esc(dateText(r.data.published_at))}<br>Observed ${esc(dateText(r.observed_at))}</small><br><a href="${esc(safeURL(r.source_url))}" rel="noopener noreferrer">${esc(r.source.name)} original listing ↗</a>`])):
+        '<div class="empty"><h3>'+(rows.length?'No matching postings.':'No sample available yet.')+'</h3><p>'+(rows.length?'Try another title or company.':'A collection may be pending, expired or awaiting source review.')+'</p></div>';
+      $('#jobs-page-status').textContent=filtered.length?`Page ${page+1} of ${pages} · ${page*size+1}–${page*size+visible.length} of ${filtered.length}`:'0 records';
+      $('#jobs-prev').disabled=page===0;$('#jobs-next').disabled=page>=pages-1;
+      document.querySelectorAll('[data-job-index]').forEach(button=>{button.onclick=()=>showDetails(visible[Number(button.dataset.jobIndex)],button);});
+    }
+    $('#jobs-filter').oninput=()=>{page=0;render();};
+    $('#jobs-page-size').onchange=()=>{page=0;render();};
+    $('#jobs-prev').onclick=()=>{page--;render();};$('#jobs-next').onclick=()=>{page++;render();};render();
   }
   const run={catalog,dataset,plans,account,connect,signin,jobs_poc}[screen];if(run)run().catch(e=>notice(e.message));
 })();

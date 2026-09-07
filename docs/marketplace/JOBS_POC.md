@@ -11,7 +11,7 @@ Other dataset acquisition remains deferred.
    redistribution approval. Gate: expired/pending/blocked policies cannot collect;
    evaluation records cannot reach the public catalog, customer reads or exports.
 2. Bounded connector and normalization. One US-specific Himalayas search response,
-   no pagination, no descriptions/logos, no local real-data ingestion. Preserve IDs,
+   no upstream pagination, no logos, no local real-data ingestion. Preserve IDs,
    provenance, salary period and timestamp semantics. Gate: synthetic tests for
    malformed data, US eligibility, request limits, robots, retries and idempotency.
 3. Private review UI and hosted sample. Operators inspect standardized rows and
@@ -28,8 +28,8 @@ attribution. General site terms are restrictive; this POC does not approve paid
 redistribution or full exports. Evidence: https://himalayas.app/api,
 https://himalayas.app/docs/openapi.json, https://himalayas.app/terms.
 
-Why factual normalization? It produces comparable employer, eligibility and pay
-fields while minimizing copied expression. Transformation is useful product work,
+Why normalization? It produces comparable employer, eligibility and pay fields.
+Descriptions remain separately attributed source text, not KWIP-authored analysis. Transformation is useful product work,
 not an automatic fair-use determination or an override of source conditions.
 The US Copyright Office describes a case-specific four-factor inquiry:
 https://www.copyright.gov/fair-use/.
@@ -70,8 +70,12 @@ absent because the current robots policy disallows page-query patterns.
 Inspect `/account/jobs-poc` from the existing operator account. Its authenticated
 GET `/api/v2/operator/jobs-poc` returns at most the latest sample plus ten audit
 receipts. No customer credit is debited. Ordinary service keys cannot use this
-browser-only evaluation endpoint. Original descriptions/excerpts/logos are neither
-retained nor shown. Raw responses are discarded after in-memory normalization.
+browser-only evaluation endpoint. Schema v2 optionally retains API-provided descriptions
+as plain text for this private internal dashboard, limited to 20,000 characters with
+an explicit truncation marker. Script/style/embedded content is discarded; the browser
+escapes all source text. Excerpts/logos are not retained. Raw responses are discarded
+after in-memory normalization. Seven-day primary-database retention applies to descriptions.
+API-specific internal-dashboard permission is the evidence; public resale remains uncleared.
 
 The existing worker removes expired POC payload versions in bounded batches,
 including after source revocation. Audit receipts retain counts and error codes,
@@ -106,3 +110,22 @@ cutoff, then verify zero POC versions. Preserve a database backup before migrati
 the schema changes are additive and need not be reversed for a code rollback.
 No source data is committed to Git. Production receipts belong to the private
 enterprise operations repository.
+
+## September 7 follow-up: paging and job details
+
+User requested pagination and richer job details before expanding sourcing tomorrow.
+The table now pages through the stored sample at 5/10/20 rows, with previous/next
+controls and counts. Search and page-size changes reset to the first page. These
+controls never request additional upstream pages or bypass the daily reservation.
+
+The detail panel shows publication, expiry and observation dates, employment type,
+eligibility, time zones, stated compensation, attribution and a description when
+collected. Schema v2 is additive; historical v1 observations are unchanged. The
+initial production sample did not retain descriptions, so the UI explains that
+those can appear on the next permitted refresh and links to the source meanwhile.
+
+Validation: 379 SQLite passes/11 PostgreSQL-only skips; 390 PostgreSQL passes, lint
+and migration-drift checks pass. Browser UAT with 12 invented rows covered middle/
+last pages, disabled boundaries, search reset, 10-row page size, detailed dates,
+plain-text description, close/focus behavior and 390px readable detail layout.
+No additional real collection was performed for this follow-up.

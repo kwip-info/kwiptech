@@ -15,7 +15,7 @@ from plane.access.auth import issue_key
 from plane.access.models import Identity, Workspace
 from plane.catalog.connectors import jobs
 from plane.catalog.models import CollectionRun, CollectionState, Dataset, Record, RecordVersion
-from plane.catalog.services import ingest_batch, read_records
+from plane.catalog.services import ingest_batch, read_records, register_dataset, register_source
 from plane.commerce.services import available_data
 
 pytestmark = pytest.mark.django_db
@@ -124,6 +124,41 @@ def test_no_assumed_pay_period_or_annualization():
     assert not any(k.startswith('salary_') for k in row['payload'])
     row = jobs.normalize(sample(minSalary=20, maxSalary=30, salaryPeriod='hourly'), NOW.isoformat())
     assert row['payload']['salary_min'] == 20 and row['payload']['salary_period'] == 'hourly'
+
+
+def test_description_plain_text_preserves_paragraphs_and_drops_active_content():
+    html = '<h2>About &amp; benefits</h2><p>First paragraph.</p><script>alert(1)</script><style>body{display:none}</style><p>Second paragraph.</p><img src="https://example.com/track"><iframe src="https://example.com">hidden</iframe>'
+    row = jobs.normalize(sample(description=html), NOW.isoformat())
+    assert row['payload']['description'] == 'About & benefits\nFirst paragraph.\nSecond paragraph.'
+    assert row['payload']['description_truncated'] is False
+    assert row['payload']['normalization_version'] == 2
+    assert 'example.com' not in row['payload']['description']
+
+
+def test_long_description_has_explicit_truncation_marker():
+    row = jobs.normalize(sample(description='A' * 25000), NOW.isoformat())
+    assert len(row['payload']['description']) == 20000
+    assert row['payload']['description_truncated'] is True
+
+
+def test_optional_description_absence_does_not_reject_job():
+    for value in (None, '', {}, '<script>hidden</script>'):
+        assert 'description' not in jobs.normalize(sample(description=value), NOW.isoformat())['payload']
+
+
+def test_description_schema_addition_preserves_original_observations():
+    p = jobs.policy(now=NOW)
+    old_fields = {k:v for k,v in jobs.FIELDS.items() if k not in ('description', 'description_truncated')}
+    dataset = register_dataset({'slug': 'us-jobs-poc', 'title': 'Initial sample', 'fields': old_fields, 'schema_version': 1})
+    source = register_source(dataset, {'slug': 'himalayas', 'name': 'Himalayas', 'url': p['attribution_url'], 'attribution':p['attribution'], 'license_url':p['evidence_urls'][0], 'rights_status':'evaluation', 'schema_version':1})
+    item = jobs.normalize(sample(description=None), NOW.isoformat())
+    item['payload']['normalization_version'] = 1
+    ingest_batch(source, [item], 'original-v1')
+    new_source = jobs.prepare_source(p)
+    assert new_source.schema.version == 2
+    assert dataset.schemas.count() == 2
+    assert RecordVersion.objects.get().schema.version == 1
+    assert RecordVersion.objects.get().payload['normalization_version'] == 1
 
 
 def test_robots_wildcards_specific_agents_and_allow_ties():

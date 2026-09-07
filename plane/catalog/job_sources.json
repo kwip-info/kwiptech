@@ -33,8 +33,9 @@
       "customer_access": false,
       "exports": false,
       "history": "Current bounded sample; observed versions only, never infer closure from absence.",
-      "excluded_fields": ["description", "excerpt", "companyLogo"],
-      "normalization_version": 1
+      "excluded_fields": ["excerpt", "companyLogo"],
+      "description_policy": "API-provided descriptions may be retained as plain text for the attributed private operator dashboard only; maximum 20000 characters, explicit truncation marker, seven-day primary-database retention. No paid redistribution or exports.",
+      "normalization_version": 2
     },
     {"id": "open-jobs", "name": "Open Jobs", "status": "pending", "url": "https://github.com/elliottdehn/open-jobs", "blocker": "Supported bulk collection policy, US coverage and employer-text rights unresolved; backend robots returned 401.", "review_due_on": "2026-09-14"},
     {"id": "open-apply", "name": "Open-Apply", "status": "pending", "url": "https://huggingface.co/datasets/edwarddgao/open-apply-jobs", "blocker": "MIT packaging license excludes employer text; snapshot gaps and US coverage require evaluation.", "review_due_on": "2026-09-14"},

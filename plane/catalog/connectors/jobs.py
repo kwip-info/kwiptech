@@ -4,6 +4,7 @@ import json
 import math
 import re
 import ssl
+from html.parser import HTMLParser
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -41,7 +42,41 @@ FIELDS = {
     'published_at': {'type': 'datetime'}, 'expires_at': {'type': 'datetime'},
     'source_status': {'type': 'enum', 'values': ['listed', 'past_source_expiry'], 'required': True},
     'normalization_version': {'type': 'integer', 'required': True},
+    'description': {'type': 'string'},
+    'description_truncated': {'type': 'boolean'},
 }
+
+
+class DescriptionText(HTMLParser):
+    """Keep readable text, never markup, embedded assets or script/style content."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts, self.hidden = [], 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('script', 'style', 'iframe', 'object'):
+            self.hidden += 1
+        elif not self.hidden and tag in ('p', 'div', 'li', 'br', 'h1', 'h2', 'h3', 'h4'):
+            self.parts.append('\n')
+
+    def handle_endtag(self, tag):
+        if tag in ('script', 'style', 'iframe', 'object'):
+            self.hidden = max(0, self.hidden - 1)
+        elif not self.hidden and tag in ('p', 'div', 'li'):
+            self.parts.append('\n')
+
+    def handle_data(self, data):
+        if not self.hidden:
+            self.parts.append(data)
+
+
+def description_text(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    parser = DescriptionText()
+    parser.feed(value)
+    cleaned = '\n'.join(' '.join(line.split()) for line in ''.join(parser.parts).splitlines() if line.strip())
+    return (cleaned[:20000], len(cleaned) > 20000) if cleaned else None
 
 
 class CollectionError(Exception):
@@ -67,6 +102,7 @@ def policy(source_id='himalayas', now=None):
             or source['customer_access'] is not False or source['exports'] is not False
             or source['max_data_requests'] != 1 or source['max_records'] != 20
             or source['minimum_refresh_hours'] < 24 or source['retention_days'] != 7
+            or source['normalization_version'] != 2
             or source['max_response_bytes'] != 2_000_000):
         raise CollectionError('unsupported_collection_policy')
     return source
@@ -120,7 +156,10 @@ def normalize(job, observed_at):
     payload = {'title': text(job.get('title'), 300), 'company': text(job.get('companyName'), 300),
                'country': 'US', 'eligibility': 'explicit_us_remote', 'remote': True,
                'location_restrictions': text('; '.join(locations), 2000),
-               'source_status': 'listed', 'normalization_version': 1}
+               'source_status': 'listed', 'normalization_version': 2}
+    description = description_text(job.get('description'))
+    if description:
+        payload['description'], payload['description_truncated'] = description
     for upstream, field in (('companySlug', 'company_source_id'), ('employmentType', 'employment_type')):
         if job.get(upstream):
             payload[field] = text(job[upstream])
@@ -167,7 +206,7 @@ def normalize_response(data, observed_at):
             rejected[exc.code] = rejected.get(exc.code, 0) + 1
     summary = {'received': len(data['jobs']), 'examined': min(20, len(data['jobs'])),
                'accepted': len(items), 'rejected': rejected, 'sample_only': True,
-               'normalization_version': 1}
+               'normalization_version': 2}
     for key in ('lastUpdated', 'updatedAt'):
         if data.get(key) is not None:
             try:
@@ -268,13 +307,13 @@ def prepare_source(p):
         raise CollectionError('evaluation_dataset_not_draft')
     dataset = register_dataset({'slug': 'us-jobs-poc', 'title': 'US remote jobs · private POC',
         'description': 'Small attributed current sample. US eligibility does not imply a US employer. No commercial distribution approved.',
-        'category': 'Jobs', 'schema_version': 1, 'fields': FIELDS, 'status': 'draft'})
+        'category': 'Jobs', 'schema_version': 2, 'fields': FIELDS, 'status': 'draft'})
     existing_source = dataset.sources.filter(slug=p['id']).first()
     if existing_source and (existing_source.rights_status != 'evaluation' or not existing_source.active):
         raise CollectionError('source_evaluation_disabled')
     source = register_source(dataset, {'slug': p['id'], 'name': p['name'], 'url': p['attribution_url'],
         'attribution': p['attribution'], 'license_url': p['evidence_urls'][0],
-        'rights_status': 'evaluation', 'schema_version': 1})
+        'rights_status': 'evaluation', 'schema_version': 2})
     CollectionState.objects.get_or_create(source=source)
     return source
 
