@@ -11,12 +11,15 @@ for name in ('adoption', 'guarantees', 'migration'):
     DESTINATIONS['docs/' + name + '.md'] = BASE + 'pyscoped/docs/' + name + '/'
     DESTINATIONS['docs/raw/' + name + '.md'] = BASE + 'pyscoped/docs/raw/' + name + '.md'
 for name in ('AGENTS', 'CLAUDE'):
+    DESTINATIONS['docs/' + name + '.md'] = BASE + 'pyscoped/docs/raw/' + name + '.md'
     DESTINATIONS['docs/' + name.lower() + '.md'] = BASE + 'pyscoped/docs/raw/' + name + '.md'
     DESTINATIONS['docs/raw/' + name + '.md'] = BASE + 'pyscoped/docs/raw/' + name + '.md'
 DESTINATIONS.update({
     'docs/platform/digest-runtime.md': BASE + 'digest/docs/',
     'docs/platform/raw/digest-runtime.md': BASE + 'digest/docs/raw/digest-runtime.md',
     'docs/platform/manifest.json': BASE + 'digest/docs/manifest.json',
+    'docs/platform/cloudflare-docs-crawlers.md': 'https://github.com/kwip-info/kwiptech/blob/b751a78973c2f2be050cf529c246623597109fbd/docs/platform/cloudflare-docs-crawlers.md',
+    'docs/platform/raw/cloudflare-docs-crawlers.md': 'https://raw.githubusercontent.com/kwip-info/kwiptech/b751a78973c2f2be050cf529c246623597109fbd/docs/platform/cloudflare-docs-crawlers.md',
 })
 
 @require_safe
