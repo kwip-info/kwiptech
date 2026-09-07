@@ -7,10 +7,10 @@ def retired(request, **kwargs):
     response = JsonResponse({
         "error": "hosted_pyscoped_retired",
         "message": "Hosted ingestion, accounts, billing, and dashboards have been retired. PyScoped 2.0 is a free Django library that runs in your database.",
-        "migration": "https://kwip.tech/docs/migration.md",
+        "migration": "https://kwip.info/technology/pyscoped/docs/migration/",
     }, status=410)
     response["Cache-Control"] = "no-store"
-    response["Link"] = '<https://kwip.tech/docs/migration.md>; rel="deprecation"'
+    response["Link"] = '<https://kwip.info/technology/pyscoped/docs/migration/>; rel="deprecation"'
     return response
 
 def health(request):

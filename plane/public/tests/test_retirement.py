@@ -27,7 +27,7 @@ def test_retirement_does_not_read_body():
 def test_public_routes_do_not_require_database(path, django_assert_num_queries):
     with django_assert_num_queries(0):
         response = Client().get(path)
-    assert response.status_code == 200
+    assert response.status_code == (200 if path in ('/', '/healthz', '/v1/ping') else 301)
 
 
 @pytest.mark.parametrize('path', ['/docs/raw//etc/passwd.md', '/docs/raw/%2e%2e/README.md', '/docs/platform/raw//etc/passwd.md'])

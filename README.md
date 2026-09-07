@@ -1,7 +1,7 @@
 # KWIP Technology
 
-Public Django website for [kwip.tech](https://kwip.tech): free PyScoped 2.0
-integration documentation and Digest product information/pilot intake.
+Neutral preparation website for [kwip.tech](https://kwip.tech). Digest and PyScoped
+information now lives at [kwip.info/technology](https://kwip.info/technology/).
 MIT licensed. Canonical repository: https://github.com/kwip-info/kwiptech.
 
 ## PyScoped 2.0 cutover
@@ -13,9 +13,12 @@ Historical core/billing models and migrations remain solely to preserve existing
 databases and rollback; no historical tables are dropped. The SDK creates its own
 additive audit tables. See [migration](docs/sdk/migration.md).
 
-Digest pilot intake and Django staff administration remain available. Public pages
-and retirement responses do not require a database. Docs are bundled with the
-release, so web startup does not download mutable documentation from PyPI.
+Legacy product and documentation GET/HEAD URLs permanently redirect to their static
+kwip.info counterparts. Old Digest submissions return 410 without parsing or storing
+the body; the new page uses the existing KWIP Formspree provider. Django staff
+administration and historical leads remain available. Public routes require no
+database. Bundled documentation and old templates remain as historical source only.
+The neutral page makes no commitments about the product being prepared.
 
 ## Development
 

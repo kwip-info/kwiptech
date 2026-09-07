@@ -88,3 +88,6 @@ jobs:
           python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/health.json")); assert d["status"] == "ok" and d["ingestion"] == "retired" and d["pyscoped"] == "2.0.0"'
           code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{}' https://kwip.tech/v1/sync/batch)
           test "$code" = 410
+          curl --fail --silent --show-error https://kwip.tech/ | grep -q "We're preparing"
+          destination=$(curl --silent --show-error --output /dev/null --write-out '%{redirect_url}' https://kwip.tech/digest)
+          test "$destination" = https://kwip.info/technology/digest/

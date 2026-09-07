@@ -1,237 +1,44 @@
-"""Tests for public marketing pages."""
+from unittest.mock import patch
+import pytest
+from django.test import Client, RequestFactory
+from plane.public.cutover import DESTINATIONS, moved
 
-import tempfile
-from pathlib import Path
-from unittest import mock
+@pytest.mark.parametrize('source,destination', DESTINATIONS.items())
+@pytest.mark.parametrize('method', ['get', 'head'])
+def test_known_information_redirects(source, destination, method):
+    response = getattr(Client(), method)('/' + source)
+    assert response.status_code == 301
+    assert response['Location'] == destination
 
-from django.test import TestCase
+@pytest.mark.django_db
+@pytest.mark.parametrize('method', ['post', 'put', 'patch', 'delete', 'options'])
+def test_old_inquiries_never_store_or_forward_body(method, django_assert_num_queries):
+    with django_assert_num_queries(0):
+        response = getattr(Client(enforce_csrf_checks=True), method)('/digest', data='private inquiry', content_type='text/plain')
+    assert response.status_code == 410
+    assert 'Location' not in response
+    assert response.json()['destination'] == 'https://kwip.info/technology/digest/'
 
-from plane.public.models import DigestPilotLead
+def test_moved_does_not_read_payload():
+    request = RequestFactory().post('/digest', data=b'private', content_type='text/plain')
+    with patch.object(type(request), 'body', property(lambda self: pytest.fail('Read body'))), patch.object(type(request), 'POST', property(lambda self: pytest.fail('Parsed form'))):
+        assert moved(request, 'digest').status_code == 410
 
+@pytest.mark.parametrize('path', ['/unknown', '/docs/missing.md', '/docs/raw/../../README.md', '/https://evil.example', '/docs/platform/missing.md'])
+def test_unknown_paths_are_not_open_redirects(path):
+    assert Client().get(path).status_code == 404
 
-class LandingPageTest(TestCase):
+def test_neutral_landing_and_crawlers():
+    client = Client()
+    response = client.get('/')
+    assert response.status_code == 200
+    assert b"We're preparing" in response.content
+    assert b'https://kwip.info/technology/digest/' in response.content
+    assert b'https://kwip.info/technology/pyscoped/' in response.content
+    assert b'<form' not in response.content
+    assert b'https://kwip.info/sitemap.xml' in client.get('/robots.txt').content
+    assert client.get('/llms.txt')['Location'] == 'https://kwip.info/technology/llms.txt'
 
-    def test_returns_200(self):
-        response = self.client.get("/")
-        assert response.status_code == 200
-
-    def test_uses_public_layout(self):
-        response = self.client.get("/")
-        self.assertTemplateUsed(response, "_layouts/public.html")
-
-    def test_contains_value_prop(self):
-        response = self.client.get("/")
-        self.assertContains(response, "Kwip technology solutions")
-        self.assertContains(response, "Current catalog")
-
-    def test_contains_signup_cta(self):
-        response = self.client.get("/")
-        self.assertContains(response, "Request pilot access")
-
-
-class PricingPageTest(TestCase):
-
-    def test_returns_200(self):
-        response = self.client.get("/pricing")
-        assert response.status_code == 200
-
-    def test_pyscoped_is_free(self):
-        response = self.client.get("/pricing")
-        self.assertContains(response, "PyScoped is free and open source")
-        self.assertNotContains(response, "sync batches")
-
-    def test_contains_digest_runtime_pricing(self):
-        response = self.client.get("/pricing")
-        self.assertContains(response, "Digest runtime licensing")
-        self.assertContains(response, "$6,000")
-        self.assertContains(response, "Paid pilot: $2,500 for 90 days")
-
-
-class DigestPageTest(TestCase):
-
-    def test_returns_200(self):
-        response = self.client.get("/digest")
-        assert response.status_code == 200
-
-    def test_contains_positioning(self):
-        response = self.client.get("/digest")
-        self.assertContains(response, "Universal Document Extraction Runtime")
-        self.assertContains(response, "No document storage")
-        self.assertContains(response, "Start a paid pilot")
-        self.assertContains(response, "$2,500 for 90 days")
-
-    def test_links_to_docs(self):
-        response = self.client.get("/digest")
-        self.assertContains(response, "/docs/platform/digest-runtime.md")
-
-    def test_pilot_form_creates_admin_visible_lead(self):
-        response = self.client.post(
-            "/digest",
-            {
-                "name": "Taylor Morgan",
-                "email": "taylor@example.com",
-                "company": "ExampleCo",
-                "role": "Operations",
-                "document_types": "PDFs and scanned images",
-                "deployment_target": "kubernetes",
-                "timeline": "30_days",
-                "use_case": "Extract private intake documents before search indexing.",
-                "website": "",
-            },
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/digest")
-        lead = DigestPilotLead.objects.get()
-        self.assertEqual(lead.name, "Taylor Morgan")
-        self.assertEqual(lead.email, "taylor@example.com")
-        self.assertEqual(lead.company, "ExampleCo")
-        self.assertEqual(lead.document_types, "PDFs and scanned images")
-        self.assertEqual(lead.deployment_target, "kubernetes")
-        self.assertEqual(lead.status, DigestPilotLead.Status.NEW)
-
-    def test_pilot_form_requires_core_fields(self):
-        response = self.client.post("/digest", {"website": ""})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "This field is required")
-        self.assertEqual(DigestPilotLead.objects.count(), 0)
-
-
-class StatusPageTest(TestCase):
-
-    def test_returns_200(self):
-        response = self.client.get("/status")
-        assert response.status_code == 200
-
-    def test_retirement_is_explicit(self):
-        self.assertContains(self.client.get("/status"), "record ingestion are retired")
-
-
-class SecurityPageTest(TestCase):
-
-    def test_returns_200(self):
-        response = self.client.get("/security")
-        assert response.status_code == 200
-
-    def test_contains_architecture_section(self):
-        response = self.client.get("/security")
-        self.assertContains(response, "Product security architecture")
-
-    def test_contains_data_residency(self):
-        response = self.client.get("/security")
-        self.assertContains(response, "Data residency")
-
-    def test_contains_digest_runtime_boundary(self):
-        response = self.client.get("/security")
-        self.assertContains(response, "Digest runtime boundary")
-
-    def test_contains_invariants(self):
-        response = self.client.get("/security")
-        self.assertContains(response, "guarantees and limitations")
-
-
-class LegalPageTest(TestCase):
-
-    def test_terms_returns_200(self):
-        response = self.client.get("/terms")
-        assert response.status_code == 200
-
-    def test_terms_contains_heading(self):
-        response = self.client.get("/terms")
-        self.assertContains(response, "Terms of Service")
-
-    def test_privacy_returns_200(self):
-        response = self.client.get("/privacy")
-        assert response.status_code == 200
-
-    def test_privacy_contains_heading(self):
-        response = self.client.get("/privacy")
-        self.assertContains(response, "Privacy Policy")
-
-    def test_cookies_returns_200(self):
-        response = self.client.get("/cookies")
-        assert response.status_code == 200
-
-    def test_cookies_contains_heading(self):
-        response = self.client.get("/cookies")
-        self.assertContains(response, "Cookie Policy")
-
-
-class AgentContextDownloadTest(TestCase):
-    """CLAUDE.md and AGENTS.md downloads for LLM/agent workspaces."""
-
-    def _serve(self, view_path, filename):
-        with tempfile.TemporaryDirectory() as tmp:
-            f = Path(tmp) / filename
-            f.write_text(f"# {filename}\nhello")
-            with mock.patch(view_path, return_value=f):
-                return self.client.get(f"/docs/{filename.lower()}")
-
-    def test_claude_md_downloads(self):
-        resp = self._serve("plane.public.views._get_claude_md", "CLAUDE.md")
-        assert resp.status_code == 200
-        self.assertEqual(resp["Content-Disposition"], 'attachment; filename="CLAUDE.md"')
-        self.assertIn("markdown", resp["Content-Type"])
-
-    def test_agents_md_downloads(self):
-        resp = self._serve("plane.public.views._get_agents_md", "AGENTS.md")
-        assert resp.status_code == 200
-        self.assertEqual(resp["Content-Disposition"], 'attachment; filename="AGENTS.md"')
-        self.assertIn("markdown", resp["Content-Type"])
-
-    def test_agents_md_is_crawlable(self):
-        resp = self._serve("plane.public.views._get_agents_md", "AGENTS.md")
-        self.assertEqual(resp["X-Robots-Tag"], "all")
-        self.assertEqual(resp["Access-Control-Allow-Origin"], "*")
-
-    def test_agents_md_missing_returns_404(self):
-        with mock.patch(
-            "plane.public.views._get_agents_md", return_value=Path("/nope/AGENTS.md")
-        ):
-            resp = self.client.get("/docs/agents.md")
-        assert resp.status_code == 404
-
-
-class CrawlerDiscoveryTest(TestCase):
-    """robots.txt and llms.txt welcome crawlers on the docs segment."""
-
-    def test_robots_txt_returns_200(self):
-        resp = self.client.get("/robots.txt")
-        assert resp.status_code == 200
-        self.assertIn("text/plain", resp["Content-Type"])
-
-    def test_robots_allows_ai_crawlers_on_docs(self):
-        body = self.client.get("/robots.txt").content.decode()
-        self.assertIn("User-agent: ClaudeBot", body)
-        self.assertIn("User-agent: GPTBot", body)
-        self.assertIn("Allow: /docs", body)
-
-    def test_robots_disallows_app_segments(self):
-        body = self.client.get("/robots.txt").content.decode()
-        self.assertIn("Disallow: /dashboard/", body)
-        self.assertIn("Disallow: /admin/", body)
-        self.assertIn("Disallow: /v1/", body)
-
-    def test_llms_txt_returns_200_and_links_context(self):
-        resp = self.client.get("/llms.txt")
-        assert resp.status_code == 200
-        body = resp.content.decode()
-        self.assertIn("/docs/claude.md", body)
-        self.assertIn("/docs/agents.md", body)
-        self.assertIn("/digest", body)
-        self.assertIn("/docs/platform/digest-runtime.md", body)
-
-    def test_discovery_files_are_crawlable(self):
-        for url in ("/robots.txt", "/llms.txt"):
-            resp = self.client.get(url)
-            self.assertEqual(resp["X-Robots-Tag"], "all", url)
-
-
-class PlatformDocsManifestTest(TestCase):
-
-    def test_includes_digest_runtime_doc(self):
-        resp = self.client.get("/docs/platform/manifest.json")
-        assert resp.status_code == 200
-        page_paths = [page["path"] for page in resp.json()["pages"]]
-        self.assertIn("digest-runtime.md", page_paths)
+def test_trailing_slash_and_query_do_not_change_destination():
+    response=Client().get('/digest/?next=https://evil.example')
+    assert response['Location']=='https://kwip.info/technology/digest/'
