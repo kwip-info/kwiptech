@@ -63,7 +63,7 @@ def webhook(request):
     try:
         if int(request.META.get('CONTENT_LENGTH') or 0) > 1048576:
             raise Problem('body_too_large', 'Webhook exceeds allowed size.', 413)
-        body = request.body
+        body = request.read(1048577)
         if len(body) > 1048576:
             raise Problem('body_too_large', 'Webhook exceeds allowed size.', 413)
         stripe_gateway.receive_event(body, request.headers.get('Stripe-Signature', ''))

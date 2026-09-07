@@ -116,3 +116,23 @@ new records. If necessary pause sales and the worker, preserve durable queues, r
 compatible code and investigate before resuming. Never restore a database backup over financial
 activity without an explicit reconciliation plan. Production receipts, cutover evidence and
 incidents belong in the private enterprise operations repository, not this public code repository.
+
+## Staff billing diagnostics
+
+Django `/admin/` exposes a **superuser-only, read-only** Commerce diagnostics section. Marketplace
+customer identities and operator flags do not confer Django admin access. Ordinary staff users
+cannot view these diagnostics even if someone assigns individual Commerce model permissions.
+There are no add/change/delete permissions or bulk mutation actions, including for superusers.
+
+Use BillingAccount to inspect current entitlement, period, overage consent/cap and reconciliation
+or cancellation timestamps. Delivery provides workspace/dataset/request identifiers, delivered
+record/credit counts, applied price and billing window. MeterOutbox shows pending/submitted/review
+status, attempts, next retry, lease and sanitized error code; MeterReconciliation shows expected
+versus remote totals. StripeEvent exposes only event ID/type/status/timestamps/error code, while
+BillingConsent shows the recorded consent policy, actor, cap and rate. Search exact workspace or
+provider IDs and filter status/time to narrow an incident. Lists are paginated50rows.
+
+Cached record responses, raw webhook payloads and checkout URLs/tokens are explicitly excluded
+from forms, lists and search, and deferred from diagnostic database reads. No provider credentials
+are exposed. These pages are inspection tools, not a way to repair or resend billing. Follow the
+reconciliation/recovery procedures above and record consequential corrections in private operations.

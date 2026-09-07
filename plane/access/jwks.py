@@ -1,5 +1,7 @@
 """Database-shared JWKS cache with a global per-issuer refresh cooldown."""
 import json
+import ssl
+import certifi
 import urllib.request
 import urllib.error
 import jwt
@@ -36,7 +38,8 @@ def signing_key(issuer, token):
                 cache.last_attempt_at = now
                 try:
                     request = urllib.request.Request(issuer.rstrip('/') + '/.well-known/jwks.json', headers={'Accept': 'application/json'})
-                    with urllib.request.urlopen(request, timeout=getattr(settings, 'MARKET_JWKS_TIMEOUT_SECONDS', 5)) as response:
+                    with urllib.request.urlopen(request, timeout=getattr(settings, 'MARKET_JWKS_TIMEOUT_SECONDS', 5),
+                                                context=ssl.create_default_context(cafile=certifi.where())) as response:
                         raw = response.read(262145)
                     if len(raw) > 262144:
                         raise ValueError('Oversized key set')

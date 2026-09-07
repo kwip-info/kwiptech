@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import ssl
 from datetime import timedelta
 from unittest.mock import Mock, patch
 import jwt
@@ -102,6 +103,10 @@ def test_unknown_kid_refresh_is_bounded_and_shared():
     with patch('urllib.request.urlopen', return_value=context) as fetch:
         good = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'known'})
         assert verify_session(good)['sub'] == 'user_test'
+        tls_context = fetch.call_args.kwargs['context']
+        assert tls_context.verify_mode == ssl.CERT_REQUIRED
+        assert tls_context.check_hostname is True
+        assert tls_context.cert_store_stats()['x509_ca'] > 0
         for n in range(10):
             token = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'unknown-'+str(n)})
             with pytest.raises(Problem):
