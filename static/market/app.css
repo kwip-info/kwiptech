@@ -194,3 +194,8 @@ pre:focus-visible{outline:2px solid var(--link);outline-offset:4px}
 #sign-in button{background-image:none}
 #sign-in input:focus{outline-width:2px;box-shadow:none}
 @media(max-width:650px){#sign-in .cl-card{padding:1.25rem}}
+/* Clerk mounts its root class on the supplied #sign-in element itself. */
+#sign-in.cl-rootBox{width:100%;max-width:100%}
+#sign-in input{border:1px solid var(--control);box-shadow:none}
+#sign-in .cl-formButtonPrimary{background:var(--primary);box-shadow:none}
+#sign-in .cl-formButtonPrimary:hover{background:var(--primary-hover)}
