@@ -1,7 +1,7 @@
 # Validation ledger — September 7, 2026
 
-Status: local and real Stripe sandbox acceptance passed; production Clerk acceptance and cutover pending.
-This distinction is deliberate: synthetic success does not prove a live provider integration.
+Status: automated, browser, real Stripe sandbox and empty-catalog production acceptance passed.
+The marketplace deployed September 7, 2026; paid purchases remain gated while the catalog is empty.
 
 ## Automated checks
 
@@ -11,7 +11,7 @@ Python 3.13 on Django 6.0.8 and 5.2.17, PostgreSQL 18 and SQLite:
   10 PostgreSQL-only concurrency cases are skipped on SQLite. CI checks both supported Django versions.
 - Ruff E/W/F, JavaScript syntax, Django system checks, migration drift and static collection pass.
 - OpenAPI 3.1 validation and route matching pass.
-- GitHub CI passed for the initial review commit; follow-up CI is recorded in the pull request.
+- PR #2 and main CI run 34164768751 passed, including production deployment and live route smoke checks.
 
 Tests exercise typed schema evolution, dryrun/apply, append-only revisions/tombstones, batch
 replay/conflict, concurrent ingestion, snapshot cursors, query types/projection/budgets,
@@ -43,8 +43,11 @@ slugs. Production must use `plane.settings`/`plane.urls` and have no `/_uat/*` r
 
 ## Provider and release gates
 
-Public Clerk signing-key discovery succeeded over verified TLS. This confirms key retrieval only,
-not a provider-authenticated user session or lifecycle webhook delivery.
+Production Clerk sign-in succeeded through the real Account Portal. The signed lifecycle endpoint
+accepted a provider sample session-ended event and persisted its session tombstone. A real signed-in
+workspace created and revoked read keys and approved a device connection; the issued key read usage,
+was refused browser-only billing and operator writes, and returned 401 after revocation. Repeated
+device polling refused a second token. Both temporary production keys were revoked.
 
 Real Stripe sandbox acceptance passed: hosted Checkout reported paid, application reconciliation
 granted Pro, 10,000 overage credits appeared in Stripe's meter summary, replay/cap protection held,
@@ -58,7 +61,14 @@ staff denial, the denial-page return link, and superuser receipt inspection with
 or edit controls. A restored production backup passed additive migrations with historical table
 counts preserved and all new marketplace tables empty.
 
-Pending: Clerk webhook cutover and provider-connected browser sign-in, final deployment and
-empty-catalog production validation. Use PROVIDER_SETUP.md and OPERATIONS.md.
-`marketplace_preflight --production --require-empty` is a read-only launch gate. Do not claim
-completion from this local ledger alone; private enterprise receipts record actual deployments.
+Production preflight passed with billing configured and zero datasets, sources, records, revisions,
+ingestion batches or exports. The web and bounded marketplace worker are running. Live prices and
+the sum meter passed application validation. A genuine Stripe product-created event for the new
+marketplace product passed the live webhook signature check; its temporary event subscription was
+removed afterward. No live customers, subscriptions or test charges were created.
+
+Public catalog, API guide, pricing, account, policy pages, OpenAPI and agent instructions return
+successfully. The catalog is explicitly empty and the plans API reports purchases unavailable.
+Retired API routes remain 410; Digest/PyScoped redirects remain intact; production UAT routes are 404.
+Use PROVIDER_SETUP.md and OPERATIONS.md for source activation and ongoing operations. Private
+enterprise receipts retain backup, provider configuration, deployment and rollback evidence.
