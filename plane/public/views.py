@@ -88,76 +88,15 @@ def cookies(request):
 # ---------------------------------------------------------------------------
 
 def _get_docs_root() -> Path:
-    """Locate the pyscoped docs directory.
-
-    Checks in order:
-    1. PYSCOPED_DOCS_PATH environment variable (explicit override)
-    2. Sibling pyscoped repo (development: ../pyscoped/docs)
-    3. Bundled docs in the installed package (if included in wheel)
-    """
-    import os
-
-    explicit = os.environ.get("PYSCOPED_DOCS_PATH")
-    if explicit:
-        return Path(explicit)
-
-    # Sibling repo (common in development and Docker with mounted volumes)
-    sibling = Path(__file__).resolve().parent.parent.parent / "pyscoped" / "docs"
-    if sibling.exists():
-        return sibling
-
-    # Fallback: installed package
-    import scoped
-    return Path(scoped.__file__).parent.parent / "docs"
+    return Path(__file__).resolve().parents[2] / "docs" / "sdk"
 
 
 def _get_claude_md() -> Path:
-    """Locate the CLAUDE.md file.
-
-    Same resolution order as _get_docs_root().
-    """
-    import os
-
-    explicit = os.environ.get("PYSCOPED_DOCS_PATH")
-    if explicit:
-        docs_path = Path(explicit)
-        # CLAUDE.md lives alongside the docs/ dir (repo root)
-        claude = docs_path.parent / "CLAUDE.md"
-        if claude.exists():
-            return claude
-        # Or inside the docs path itself (Docker build copies it there)
-        claude = docs_path / "CLAUDE.md"
-        if claude.exists():
-            return claude
-
-    sibling = Path(__file__).resolve().parent.parent.parent / "pyscoped" / "CLAUDE.md"
-    if sibling.exists():
-        return sibling
-
-    import scoped
-    return Path(scoped.__file__).parent.parent / "CLAUDE.md"
+    return _get_docs_root() / "CLAUDE.md"
 
 
 def _get_agents_md() -> Path:
-    """Locate the AGENTS.md file (same resolution order as _get_claude_md())."""
-    import os
-
-    explicit = os.environ.get("PYSCOPED_DOCS_PATH")
-    if explicit:
-        docs_path = Path(explicit)
-        agents = docs_path.parent / "AGENTS.md"
-        if agents.exists():
-            return agents
-        agents = docs_path / "AGENTS.md"
-        if agents.exists():
-            return agents
-
-    sibling = Path(__file__).resolve().parent.parent.parent / "pyscoped" / "AGENTS.md"
-    if sibling.exists():
-        return sibling
-
-    import scoped
-    return Path(scoped.__file__).parent.parent / "AGENTS.md"
+    return _get_docs_root() / "AGENTS.md"
 
 
 def docs(request):
@@ -200,7 +139,7 @@ def docs_page(request, path):
     docs_root = _get_docs_root()
     # Sanitize: only allow .md files under docs/
     safe_path = Path(path)
-    if ".." in safe_path.parts or not str(safe_path).endswith(".md"):
+    if safe_path.is_absolute() or ".." in safe_path.parts or not str(safe_path).endswith(".md"):
         return HttpResponse("Not found", status=404)
 
     file_path = docs_root / safe_path
@@ -241,7 +180,7 @@ def docs_raw(request, path):
     """Serve a raw markdown file for programmatic access."""
     docs_root = _get_docs_root()
     safe_path = Path(path)
-    if ".." in safe_path.parts or not str(safe_path).endswith(".md"):
+    if safe_path.is_absolute() or ".." in safe_path.parts or not str(safe_path).endswith(".md"):
         return HttpResponse("Not found", status=404, content_type="text/plain")
 
     file_path = docs_root / safe_path
@@ -290,7 +229,7 @@ def platform_docs_page(request, path):
     """Render a platform documentation page."""
     docs_root = _get_platform_docs_root()
     safe_path = Path(path)
-    if ".." in safe_path.parts or not str(safe_path).endswith(".md"):
+    if safe_path.is_absolute() or ".." in safe_path.parts or not str(safe_path).endswith(".md"):
         return HttpResponse("Not found", status=404)
 
     file_path = docs_root / safe_path
@@ -320,7 +259,7 @@ def platform_docs_raw(request, path):
     """Serve a raw platform markdown file."""
     docs_root = _get_platform_docs_root()
     safe_path = Path(path)
-    if ".." in safe_path.parts or not str(safe_path).endswith(".md"):
+    if safe_path.is_absolute() or ".." in safe_path.parts or not str(safe_path).endswith(".md"):
         return HttpResponse("Not found", status=404, content_type="text/plain")
 
     file_path = docs_root / safe_path
@@ -389,14 +328,13 @@ def llms_txt(request):
     base = request.build_absolute_uri("/").rstrip("/")
     body = f"""# pyscoped
 
-> Universal object-isolation and tenancy-scoping framework for Python. Creator-private
-> by default, explicit sharing via scopes, versioned mutations, and a tamper-evident
-> hash-chained audit trail.
+> Free MIT Django library for incremental tenant scoping and transactional audit history.
+> Existing Django models remain authoritative. No hosted record ingestion, accounts, or paid tiers.
 
 ## Agent & LLM context
 
 - [CLAUDE.md]({base}/docs/claude.md): Full framework reference for AI assistants
-- [AGENTS.md]({base}/docs/agents.md): Vendor-neutral agent guide (incl. pyscoped[django] integration)
+- [AGENTS.md]({base}/docs/agents.md): Vendor-neutral agent guide (incl. PyScoped 2.0 Django integration)
 
 ## Docs
 

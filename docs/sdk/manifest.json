@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "categories": [
+    {
+      "id": "guide",
+      "title": "PyScoped 2.0",
+      "order": 1
+    }
+  ],
+  "pages": [
+    {
+      "path": "adoption.md",
+      "title": "Adoption",
+      "category": "guide"
+    },
+    {
+      "path": "guarantees.md",
+      "title": "Guarantees",
+      "category": "guide"
+    },
+    {
+      "path": "migration.md",
+      "title": "Migration",
+      "category": "guide"
+    }
+  ]
+}

@@ -1,39 +1,17 @@
-"""Core models — accounts, API keys, synced audit metadata.
+"""Historical hosted-service schema, retained for recovery; no active ingestion.
 
-These models store management plane data. The customer's actual data
-stays in their database — we only receive structural metadata via
-the sync agent.
-
-Models with pyscoped integration (Organization, Application, Membership,
-Role) override ``save()`` and ``delete()`` to automatically sync with
-the pyscoped SDK. Sync is additive — if the scoped backend is
-unavailable, Django models still work.
+Do not remove these tables without a separate retention and backup decision.
 """
 
 import secrets
 
-from django.db import models, transaction
+from django.db import models
 from django.utils import timezone
-from scoped.exceptions import ScopedError
-from scoped.ids import PrincipalId, RuleId, ScopeId
-from scoped.logging import get_logger
-
-_scoped_logger = get_logger("scoped_sync")
 
 
-def _get_scoped_client():
-    """Return the scoped client singleton, or None if unavailable."""
-    try:
-        from scoped.contrib.django import get_client
-        return get_client()
-    except Exception:  # Graceful degradation — scoped may not be configured
-        return None
 
 
-def _get_services(client):
-    """Extract the service container from a scoped client."""
-    from scoped.contrib._base import build_services
-    return build_services(client._backend)
+
 
 
 # ---------------------------------------------------------------------------
@@ -255,73 +233,7 @@ class Organization(models.Model):
 
     # -- Scoped sync -------------------------------------------------------
 
-    def sync_to_scoped(self, *, updated_by: str = "system") -> None:
-        """Create or update the pyscoped Principal + Scope for this org.
 
-        Called automatically after save(). Safe to call manually for
-        retry/repair.
-        """
-        client = _get_scoped_client()
-        if client is None:
-            return
-
-        try:
-            services = _get_services(client)
-            with transaction.atomic():
-                if not self.scoped_principal_id:
-                    # First sync — create principal + scope
-                    principal = services["principals"].create_principal(
-                        kind="org",
-                        display_name=self.name,
-                        created_by="system",
-                        principal_id=PrincipalId(self.id),
-                    )
-                    scope = services["scopes"].create_scope(
-                        name=self.slug,
-                        owner_id=principal.id,
-                        description=f"Organization: {self.name}",
-                    )
-                    Organization.objects.filter(pk=self.pk).update(
-                        scoped_principal_id=principal.id,
-                        scoped_scope_id=scope.id,
-                    )
-                    self.scoped_principal_id = principal.id
-                    self.scoped_scope_id = scope.id
-                else:
-                    # Subsequent sync — update principal + scope
-                    services["principals"].update_principal(
-                        self.scoped_principal_id,
-                        display_name=self.name,
-                        updated_by=updated_by,
-                    )
-                    services["scopes"].rename_scope(
-                        self.scoped_scope_id,
-                        new_name=self.slug,
-                        renamed_by=updated_by,
-                    )
-                    services["scopes"].update_scope(
-                        self.scoped_scope_id,
-                        description=f"Organization: {self.name}",
-                        updated_by=updated_by,
-                    )
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning("Failed to sync org to scoped", org_id=self.id)
-
-    def archive_in_scoped(self, *, archived_by: str = "system") -> None:
-        """Archive the org's pyscoped scope."""
-        if not self.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-        try:
-            services = _get_services(client)
-            services["scopes"].archive_scope(
-                self.scoped_scope_id,
-                archived_by=archived_by,
-            )
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning("Failed to archive scoped scope for org", org_id=self.id)
 
 
 # ---------------------------------------------------------------------------
@@ -353,61 +265,7 @@ class Application(models.Model):
 
     # -- Scoped sync -------------------------------------------------------
 
-    def sync_to_scoped(self, *, updated_by: str = "system") -> None:
-        """Create or update the pyscoped child Scope for this app.
 
-        Called automatically after save(). Safe to call manually.
-        """
-        org = self.organization
-        if not org.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-
-        try:
-            services = _get_services(client)
-            with transaction.atomic():
-                if not self.scoped_scope_id:
-                    scope = services["scopes"].create_scope(
-                        name=self.slug,
-                        owner_id=PrincipalId(org.scoped_principal_id),
-                        parent_scope_id=ScopeId(org.scoped_scope_id),
-                        description=f"Application: {self.name}",
-                    )
-                    Application.objects.filter(pk=self.pk).update(
-                        scoped_scope_id=scope.id,
-                    )
-                    self.scoped_scope_id = scope.id
-                else:
-                    services["scopes"].rename_scope(
-                        self.scoped_scope_id,
-                        new_name=self.slug,
-                        renamed_by=updated_by,
-                    )
-                    services["scopes"].update_scope(
-                        self.scoped_scope_id,
-                        description=f"Application: {self.name}",
-                        updated_by=updated_by,
-                    )
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning("Failed to sync app to scoped", app_id=self.id)
-
-    def archive_in_scoped(self, *, archived_by: str = "system") -> None:
-        """Archive the app's pyscoped scope."""
-        if not self.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-        try:
-            services = _get_services(client)
-            services["scopes"].archive_scope(
-                self.scoped_scope_id,
-                archived_by=archived_by,
-            )
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning("Failed to archive scoped scope for app", app_id=self.id)
 
 
 # ---------------------------------------------------------------------------
@@ -463,73 +321,7 @@ class Role(models.Model):
 
     # -- Scoped sync -------------------------------------------------------
 
-    def sync_rules_to_scoped(self, *, created_by: str = "system") -> None:
-        """Create pyscoped ACCESS rules for this role's permissions.
 
-        Archives any existing rules first, then creates fresh ones.
-        """
-        org = self.organization
-        if not org.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-
-        try:
-            from scoped.rules.conditions import AccessCondition
-            from scoped.rules.models import BindingTargetType, RuleEffect, RuleType
-            services = _get_services(client)
-
-            # Archive old rules
-            for rule_id in self.scoped_rule_ids or []:
-                try:
-                    services["rules"].archive_rule(rule_id, archived_by=created_by)
-                except ScopedError:
-                    pass
-
-            # Create new rules
-            rule_ids = []
-            for perm in self.permissions.all():
-                rule = services["rules"].create_rule(
-                    name=f"{org.slug}:{self.name}:{perm.id}",
-                    rule_type=RuleType.ACCESS,
-                    effect=RuleEffect.ALLOW,
-                    conditions=AccessCondition(
-                        action=perm.id,
-                        role=self.name.lower(),
-                    ),
-                    priority=100,
-                    created_by=org.scoped_principal_id or "system",
-                )
-                services["rules"].bind_rule(
-                    rule.id,
-                    target_type=BindingTargetType.SCOPE,
-                    target_id=org.scoped_scope_id,
-                    bound_by=org.scoped_principal_id or "system",
-                )
-                rule_ids.append(rule.id)
-
-            Role.objects.filter(pk=self.pk).update(scoped_rule_ids=rule_ids)
-            self.scoped_rule_ids = rule_ids
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning("Failed to sync rules for role", role_name=self.name)
-
-    def archive_rules_in_scoped(self, *, archived_by: str = "system") -> None:
-        """Archive all pyscoped rules for this role."""
-        if not self.scoped_rule_ids:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-        try:
-            services = _get_services(client)
-            for rule_id in self.scoped_rule_ids:
-                try:
-                    services["rules"].archive_rule(rule_id, archived_by=archived_by)
-                except ScopedError:
-                    pass
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning("Failed to archive scoped rules for role", role_name=self.name)
 
 
 class RolePermission(models.Model):
@@ -559,14 +351,7 @@ class RolePermission(models.Model):
 # ---------------------------------------------------------------------------
 
 # Maps platform role names to pyscoped ScopeRole enum values
-from scoped.tenancy.models import ScopeRole
 
-_ROLE_MAP = {
-    "Owner": ScopeRole.OWNER,
-    "Admin": ScopeRole.ADMIN,
-    "Developer": ScopeRole.EDITOR,
-    "Viewer": ScopeRole.VIEWER,
-}
 
 
 class Membership(models.Model):
@@ -606,107 +391,8 @@ class Membership(models.Model):
 
     # -- Scoped sync -------------------------------------------------------
 
-    def sync_to_scoped(self) -> None:
-        """Add this member to the org's pyscoped scope.
 
-        Called after save(). Safe to call manually.
-        """
-        org = self.organization
-        if not org.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
 
-        try:
-            services = _get_services(client)
-
-            account_principal = services["principals"].find_principal(
-                self.account.id,
-            )
-            if account_principal is None:
-                return
-
-            scoped_role = _ROLE_MAP.get(self.role.name, ScopeRole.VIEWER)
-
-            sm = services["scopes"].add_member(
-                org.scoped_scope_id,
-                principal_id=account_principal.id,
-                role=scoped_role,
-                granted_by=org.scoped_principal_id or "system",
-            )
-
-            Membership.objects.filter(pk=self.pk).update(
-                scoped_membership_id=sm.id,
-            )
-            self.scoped_membership_id = sm.id
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning(
-                "Failed to sync membership to scoped",
-                account_id=self.account_id, org_id=self.organization_id,
-            )
-
-    @staticmethod
-    def bulk_sync_to_scoped(memberships, org) -> None:
-        """Add multiple members to the org scope in one call."""
-        if not org.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-
-        try:
-            services = _get_services(client)
-            members = []
-            for m in memberships:
-                principal = services["principals"].find_principal(m.account.id)
-                if principal is None:
-                    continue
-                members.append({
-                    "principal_id": principal.id,
-                    "role": _ROLE_MAP.get(m.role.name, ScopeRole.VIEWER),
-                })
-
-            if members:
-                results = services["scopes"].add_members(
-                    org.scoped_scope_id,
-                    members=members,
-                    granted_by=org.scoped_principal_id or "system",
-                )
-                for m, sm in zip(memberships, results):
-                    Membership.objects.filter(pk=m.pk).update(
-                        scoped_membership_id=sm.id,
-                    )
-                    m.scoped_membership_id = sm.id
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning(
-                "Failed to bulk sync memberships", org_id=org.id,
-            )
-
-    def revoke_in_scoped(self, *, revoked_by: str = "system") -> None:
-        """Revoke this member from the org's pyscoped scope."""
-        org = self.organization
-        if not org.scoped_scope_id or not self.scoped_membership_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-        try:
-            services = _get_services(client)
-            account_principal = services["principals"].find_principal(
-                self.account.id,
-            )
-            if account_principal:
-                services["scopes"].revoke_member(
-                    org.scoped_scope_id,
-                    principal_id=account_principal.id,
-                    revoked_by=revoked_by,
-                )
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning(
-                "Failed to revoke scoped membership",
-                account_id=self.account_id, org_id=org.id,
-            )
 
 
 class AppMembership(models.Model):
@@ -755,60 +441,3 @@ class AppMembership(models.Model):
     def __str__(self):
         env = self.environment or "all"
         return f"{self.membership.account} in {self.application.name}/{env} as {self.role.name}"
-
-    def sync_to_scoped(self) -> None:
-        """Add this override as a ScopeMembership on the app's child scope."""
-        app = self.application
-        if not app.scoped_scope_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-        try:
-            services = _get_services(client)
-            principal = services["principals"].find_principal(
-                self.membership.account.id,
-            )
-            if principal is None:
-                return
-            scoped_role = _ROLE_MAP.get(self.role.name, ScopeRole.VIEWER)
-            sm = services["scopes"].add_member(
-                app.scoped_scope_id,
-                principal_id=PrincipalId(principal.id),
-                role=scoped_role,
-                granted_by=app.organization.scoped_principal_id or "system",
-            )
-            AppMembership.objects.filter(pk=self.pk).update(
-                scoped_membership_id=sm.id,
-            )
-            self.scoped_membership_id = sm.id
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning(
-                "Failed to sync app membership",
-                app_id=self.application_id,
-            )
-
-    def revoke_in_scoped(self, *, revoked_by: str = "system") -> None:
-        """Revoke this override from the app's pyscoped scope."""
-        app = self.application
-        if not app.scoped_scope_id or not self.scoped_membership_id:
-            return
-        client = _get_scoped_client()
-        if client is None:
-            return
-        try:
-            services = _get_services(client)
-            principal = services["principals"].find_principal(
-                self.membership.account.id,
-            )
-            if principal:
-                services["scopes"].revoke_member(
-                    app.scoped_scope_id,
-                    principal_id=PrincipalId(principal.id),
-                    revoked_by=revoked_by,
-                )
-        except Exception:  # Graceful degradation — scoped subsystem may be unavailable
-            _scoped_logger.warning(
-                "Failed to revoke scoped app membership",
-                app_id=app.id,
-            )

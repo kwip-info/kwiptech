@@ -1,10 +1,6 @@
-django>=5.0
-djangorestframework>=3.14
-psycopg[binary]>=3.1
-pyscoped[django]==1.8.1
+Django>=5.2,<6.1
+psycopg[binary]>=3.2
+pyscoped==2.0.0
 gunicorn>=22.0
 dj-database-url>=2.1
 whitenoise>=6.5
-PyJWT[crypto]>=2.8
-svix>=1.8
-stripe>=12.0

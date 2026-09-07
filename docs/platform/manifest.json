@@ -1,20 +1,16 @@
 {
-  "version": "1.0.0",
-  "generated": "2026-04-01",
-  "base_url": "/docs/platform",
   "categories": [
-    {"id": "api", "label": "API", "order": 1},
-    {"id": "usage", "label": "Usage", "order": 2},
-    {"id": "internals", "label": "Internals", "order": 3},
-    {"id": "operations", "label": "Operations", "order": 4}
+    {
+      "id": "platform",
+      "title": "KWIP Technology",
+      "order": 1
+    }
   ],
   "pages": [
-    {"path": "api-reference.md", "title": "REST API Reference", "category": "api", "order": 1, "description": "Complete v1 endpoint reference with request/response formats"},
-    {"path": "dashboard.md", "title": "Dashboard Guide", "category": "usage", "order": 1, "description": "All dashboard features — keys, audit, sync, billing, roles"},
-    {"path": "digest-runtime.md", "title": "Digest Runtime", "category": "usage", "order": 2, "description": "Self-hosted document extraction runtime and platform boundary"},
-    {"path": "architecture.md", "title": "Platform Architecture", "category": "internals", "order": 1, "description": "Dual-model pattern, auth flow, billing pipeline, tech stack"},
-    {"path": "data-model.md", "title": "Data Model Reference", "category": "internals", "order": 2, "description": "Complete Django model reference with fields and relationships"},
-    {"path": "deployment.md", "title": "Deployment Guide", "category": "operations", "order": 1, "description": "Docker, Heroku, env vars, migrations, security"},
-    {"path": "cloudflare-docs-crawlers.md", "title": "Allowing Crawlers on the Docs", "category": "operations", "order": 2, "description": "Fix AI/LLM crawler 403s with a Cloudflare WAF skip rule scoped to /docs"}
+    {
+      "path": "digest-runtime.md",
+      "title": "Digest runtime",
+      "category": "platform"
+    }
   ]
 }

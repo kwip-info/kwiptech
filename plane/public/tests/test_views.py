@@ -35,15 +35,10 @@ class PricingPageTest(TestCase):
         response = self.client.get("/pricing")
         assert response.status_code == 200
 
-    def test_contains_plan_tiers(self):
+    def test_pyscoped_is_free(self):
         response = self.client.get("/pricing")
-        self.assertContains(response, "Free")
-        self.assertContains(response, "Pro")
-        self.assertContains(response, "Enterprise")
-
-    def test_contains_never_billed(self):
-        response = self.client.get("/pricing")
-        self.assertContains(response, "never billed")
+        self.assertContains(response, "PyScoped is free and open source")
+        self.assertNotContains(response, "sync batches")
 
     def test_contains_digest_runtime_pricing(self):
         response = self.client.get("/pricing")
@@ -109,13 +104,8 @@ class StatusPageTest(TestCase):
         response = self.client.get("/status")
         assert response.status_code == 200
 
-    def test_contains_htmx_ping(self):
-        response = self.client.get("/status")
-        self.assertContains(response, 'hx-get="/v1/ping"')
-
-    def test_contains_auto_refresh(self):
-        response = self.client.get("/status")
-        self.assertContains(response, "every 30s")
+    def test_retirement_is_explicit(self):
+        self.assertContains(self.client.get("/status"), "record ingestion are retired")
 
 
 class SecurityPageTest(TestCase):
@@ -138,7 +128,7 @@ class SecurityPageTest(TestCase):
 
     def test_contains_invariants(self):
         response = self.client.get("/security")
-        self.assertContains(response, "Nothing happens without a trace")
+        self.assertContains(response, "guarantees and limitations")
 
 
 class LegalPageTest(TestCase):
@@ -166,21 +156,6 @@ class LegalPageTest(TestCase):
     def test_cookies_contains_heading(self):
         response = self.client.get("/cookies")
         self.assertContains(response, "Cookie Policy")
-
-
-class AuthPageRoutingTest(TestCase):
-
-    def test_sign_in_returns_200(self):
-        response = self.client.get("/sign-in")
-        assert response.status_code == 200
-
-    def test_sign_up_returns_200(self):
-        response = self.client.get("/sign-up")
-        assert response.status_code == 200
-
-    def test_sign_in_sub_path_returns_200(self):
-        response = self.client.get("/sign-in/factor-one")
-        assert response.status_code == 200
 
 
 class AgentContextDownloadTest(TestCase):

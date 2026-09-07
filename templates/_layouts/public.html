@@ -16,12 +16,7 @@
                     <a href="{% url 'public:docs' %}" class="text-sm text-gray-600 hover:text-gray-900">Docs</a>
                     <a href="{% url 'public:security' %}" class="text-sm text-gray-600 hover:text-gray-900">Security</a>
                     <a href="{% url 'public:status' %}" class="text-sm text-gray-600 hover:text-gray-900">Status</a>
-                    {% if clerk_user %}
-                    <a href="{% url 'dashboard:index' %}" data-clerk-authed class="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-500">Dashboard</a>
-                    {% else %}
-                    <a href="{% url 'public:sign_in' %}" class="text-sm text-gray-600 hover:text-gray-900">Sign in</a>
-                    <a href="{% url 'public:sign_up' %}" class="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-500">Sign up</a>
-                    {% endif %}
+                    <a href="https://github.com/kwip-info/pyscoped" class="text-sm text-gray-600">GitHub</a>
                 </div>
                 <button
                     type="button"
@@ -46,12 +41,7 @@
                     <a href="{% url 'public:docs' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900">Docs</a>
                     <a href="{% url 'public:security' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900">Security</a>
                     <a href="{% url 'public:status' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900">Status</a>
-                    {% if clerk_user %}
-                    <a href="{% url 'dashboard:index' %}" data-clerk-authed class="mt-2 rounded-md bg-brand-600 px-3 py-2 text-center text-sm font-medium text-white hover:bg-brand-500">Dashboard</a>
-                    {% else %}
-                    <a href="{% url 'public:sign_in' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900">Sign in</a>
-                    <a href="{% url 'public:sign_up' %}" class="mt-2 rounded-md bg-brand-600 px-3 py-2 text-center text-sm font-medium text-white hover:bg-brand-500">Sign up</a>
-                    {% endif %}
+                    <a href="https://github.com/kwip-info/pyscoped" class="text-sm text-gray-600">GitHub</a>
                 </div>
             </div>
         </div>

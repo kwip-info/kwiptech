@@ -1,6 +1,6 @@
 /*
- * App-level JavaScript for scoped management plane.
- * Configures HTMX, CSRF, Clerk, and global alert system.
+ * Public website interaction helpers.
+ * Configures HTMX, CSRF, and global alerts.
  */
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -108,72 +108,3 @@ function copyToClipboard(text) {
         showAlert("Copied to clipboard", "success");
     });
 }
-
-
-/**
- * Run a callback once Clerk JS has loaded.
- * No-op if the Clerk script tag is not on the page.
- */
-function onClerkReady(callback) {
-    var attempts = 0;
-    function check() {
-        if (window.Clerk && window.Clerk.loaded) {
-            callback(window.Clerk);
-        } else if (window.Clerk) {
-            window.Clerk.load().then(function () {
-                callback(window.Clerk);
-            });
-        } else if (attempts < 100) {
-            attempts++;
-            setTimeout(check, 50);
-        }
-    }
-    // Wait for DOM to finish parsing so the Clerk script tag is present
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", check);
-    } else {
-        check();
-    }
-}
-
-
-/**
- * Sync Clerk session token to a __session cookie on our domain.
- */
-function syncClerkSession(clerk) {
-    if (!clerk.session) {
-        document.cookie = "__session=; path=/; max-age=0";
-        return Promise.resolve();
-    }
-    return clerk.session.getToken().then(function (token) {
-        if (token) {
-            document.cookie = "__session=" + token + "; path=/; SameSite=Lax";
-        } else {
-            document.cookie = "__session=; path=/; max-age=0";
-        }
-    });
-}
-
-
-// Keep session cookie in sync and mount UserButton
-onClerkReady(function (clerk) {
-    syncClerkSession(clerk).then(function () {
-        // After cookie sync, reload the page once so the server-rendered
-        // navbar reflects auth state (shows Dashboard button vs Sign in).
-        // Only reload if auth state changed since server render.
-        var serverAuthed = !!document.querySelector("[data-clerk-authed]");
-        if (clerk.user && !serverAuthed) {
-            window.location.reload();
-        }
-    });
-    clerk.addListener(function () {
-        syncClerkSession(clerk);
-    });
-
-    var el = document.getElementById("clerk-user-button");
-    if (el) {
-        clerk.mountUserButton(el, {
-            afterSignOutUrl: "/",
-        });
-    }
-});

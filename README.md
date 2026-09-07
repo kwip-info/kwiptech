@@ -1,44 +1,43 @@
-# KWIP Technology platform
+# KWIP Technology
 
-This repository is the production Django control plane and public site at `https://kwip.tech`. It
-is the public and commercial surface for KWIP Technology, not a fourth KWIP division and not a
-hosted customer-document processing service.
+Public Django website for [kwip.tech](https://kwip.tech): free PyScoped 2.0
+integration documentation and Digest product information/pilot intake.
+MIT licensed. Canonical repository: https://github.com/kwip-info/kwiptech.
 
-## Current product boundary
+## PyScoped 2.0 cutover
 
-- **Digest** is the pilot-ready, self-hosted document extraction runtime. Customer documents stay
-  inside the customer's environment; this platform distributes product information, documentation,
-  pilot intake, licensing, and release access.
-- **PyScoped** is the maintained Python isolation, authorization, audit, and rollback framework.
-  The platform provides its management-plane surfaces without becoming the system of record for a
-  customer's application objects.
-- **PyScoped Rules (`pyrule`)** is the smaller framework-agnostic authorization core for roles,
-  permissions, entitlements, conditional rules, and usage limits. Its package repository owns the
-  implementation contract.
+PyScoped is a free Django library with no cloud ingestion or paid tiers.
+The former v1 API, dashboard, account provisioning, and billing endpoints return
+HTTP 410. Their handlers and scheduled billing commands have been removed.
+Historical core/billing models and migrations remain solely to preserve existing
+databases and rollback; no historical tables are dropped. The SDK creates its own
+additive audit tables. See [migration](docs/sdk/migration.md).
 
-The public catalog is intentionally narrow. Product implementation truth lives in the independent
-Digest, PyScoped, and PyScoped Rules repositories; this repository owns their shared public and
-commercial presentation at `kwip.tech`.
+Digest pilot intake and Django staff administration remain available. Public pages
+and retirement responses do not require a database. Docs are bundled with the
+release, so web startup does not download mutable documentation from PyPI.
 
-## Production architecture
+## Development
 
-- Django application on Heroku with managed PostgreSQL;
-- Clerk for customer identity and organizations;
-- Stripe for platform billing;
-- Cloudflare for the `kwip.tech` DNS and edge boundary;
-- GitHub Actions for CI and the current deployment path.
+Python 3.13, Django 5.2 or 6.0. Create a virtual environment, install
+`requirements-dev.txt`, then set `DATABASE_URL=sqlite:///db.sqlite3` and run:
 
-External ownership, sign-in routes, and credential boundaries are maintained in the enterprise
-workspace's `operations/SERVICE_REGISTER.md` and `operations/CONTROL_PLANES.md`. Do not commit
-credentials or treat repository configuration examples as production state.
+```sh
+python manage.py migrate
+python manage.py runserver
+python -m pytest -q
+python manage.py makemigrations --check --dry-run
+```
 
-## Repository map
+Use `.env-example` as a reference; Django reads environment variables directly.
+For staff access use Django's `createsuperuser`; no default credentials ship.
 
-- `plane/` — Django application, API, identity, billing, dashboard, and public-site behavior;
-- `templates/` and `static/` — public and authenticated interface;
-- `docs/platform/` — platform architecture, deployment, API, dashboard, and Digest boundary;
-- `docs/sales/` — approved sales enablement inputs;
-- `.github/workflows/` — CI and deployment automation.
+## Deployment
 
-Preserve the production URL, authentication domains, billing integration, and deployment path
-unless a migration has an explicit cutover and rollback plan in the enterprise operations record.
+GitHub CI tests before deploying main to the existing Heroku app `kwip-tech`.
+The repository rename does not rename Heroku or change kwip.tech DNS.
+Configure `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, and `DATABASE_URL` in Heroku.
+The release phase migrates additively and collects static files.
+Do not put tokens, database backups, or production records into this repository.
+Production backup/cutover/rollback evidence belongs in the private enterprise
+operations repository. Retain Heroku backups before deployment.

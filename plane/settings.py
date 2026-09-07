@@ -31,16 +31,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "rest_framework",
-    # pyscoped dogfooding — the management plane eats its own dogfood.
-    # Every operation on the platform is audited, isolated, and versioned
-    # through the same framework we sell.
-    "scoped.contrib.django",
+    "pyscoped",
     "plane.core",
     "plane.billing",
-    "plane.dashboard",
     "plane.public",
-    "plane.webhooks",
 ]
 
 MIDDLEWARE = [
@@ -50,11 +44,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "plane.auth.middleware.ClerkAuthMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # pyscoped context injection — attributes every request to a principal
-    "plane.middleware.PlatformScopedContextMiddleware",
 ]
 
 ROOT_URLCONF = "plane.urls"
@@ -70,7 +61,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "plane.dashboard.context_processors.clerk_settings",
             ],
         },
     },
@@ -104,94 +94,6 @@ DATABASES = {
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
 ]
-
-# ---------------------------------------------------------------------------
-# Clerk — frontend authentication for dashboard
-# ---------------------------------------------------------------------------
-
-CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY", "")
-CLERK_SECRET_KEY = os.environ.get("CLERK_SECRET_KEY", "")
-CLERK_JWKS_URL = os.environ.get("CLERK_JWKS_URL", "")
-CLERK_JWKS_CACHE_TTL = int(os.environ.get("CLERK_JWKS_CACHE_TTL", "3600"))
-CLERK_WEBHOOK_SECRET = os.environ.get("CLERK_WEBHOOK_SECRET", "")
-
-# Stripe
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_PRICE_PRO = os.environ.get("STRIPE_PRICE_PRO", "")
-STRIPE_PRICE_OBJECT_OVERAGE = os.environ.get("STRIPE_PRICE_OBJECT_OVERAGE", "")
-STRIPE_PRICE_PRINCIPAL_OVERAGE = os.environ.get("STRIPE_PRICE_PRINCIPAL_OVERAGE", "")
-
-# Validate Stripe config in production
-if not DEBUG and STRIPE_SECRET_KEY:
-    if not STRIPE_SECRET_KEY.startswith(("sk_live_", "sk_test_")):
-        raise ValueError("STRIPE_SECRET_KEY must start with sk_live_ or sk_test_")
-    if not STRIPE_WEBHOOK_SECRET.startswith("whsec_"):
-        raise ValueError("STRIPE_WEBHOOK_SECRET must start with whsec_")
-elif not DEBUG and not STRIPE_SECRET_KEY:
-    import warnings
-    warnings.warn(
-        "STRIPE_SECRET_KEY not set — billing is disabled. "
-        "Set it to enable paid plans and usage metering.",
-        RuntimeWarning,
-        stacklevel=1,
-    )
-
-# ---------------------------------------------------------------------------
-# DRF
-# ---------------------------------------------------------------------------
-
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "plane.api.auth.ApiKeyAuthentication",
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
-    ],
-    "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
-    ],
-    "EXCEPTION_HANDLER": "plane.api.exceptions.api_exception_handler",
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.UserRateThrottle",
-    ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "20/minute",
-        "user": "120/minute",
-        "sync": "30/minute",
-        "key_create": "10/minute",
-    },
-}
-
-# ---------------------------------------------------------------------------
-# pyscoped — dogfooding configuration
-# ---------------------------------------------------------------------------
-
-# The management plane uses pyscoped's DjangoORMBackend, which creates
-# pyscoped's schema tables alongside our own Django models in the same
-# Postgres database. Every API request is attributed to a pyscoped
-# principal via the ScopedContextMiddleware.
-
-# Resolve the acting principal from the API key authentication.
-# The middleware calls this function with the request; we return the
-# pyscoped principal matching the authenticated account.
-SCOPED_PRINCIPAL_RESOLVER = "plane.api.principal_resolver.resolve_principal"
-
-# Exempt health check and provisioning from principal resolution.
-SCOPED_EXEMPT_PATHS = [
-    "/v1/ping", "/v1/provision", "/admin/",
-    "/digest", "/pricing", "/status", "/security",
-    "/terms", "/privacy", "/cookies", "/docs",
-    "/sign-in", "/sign-up", "/static/",
-    "/webhooks/",
-    "/robots.txt", "/llms.txt",
-]
-
-# Prefix matching cannot safely represent the site root: every URL starts
-# with "/". Keep the static landing page independent of the database without
-# exempting authenticated application routes.
-SCOPED_EXEMPT_EXACT_PATHS = ["/"]
 
 # ---------------------------------------------------------------------------
 # Static files
