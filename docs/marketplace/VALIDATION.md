@@ -1,14 +1,14 @@
 # Validation ledger — September 7, 2026
 
-Status: implementation validated locally; provider-connected UAT and production cutover pending.
+Status: local and real Stripe sandbox acceptance passed; production Clerk acceptance and cutover pending.
 This distinction is deliberate: synthetic success does not prove a live provider integration.
 
 ## Automated checks
 
 Python 3.13 on Django 6.0.8 and 5.2.17, PostgreSQL 18 and SQLite:
 
-- 351 tests pass on PostgreSQL on each supported Django version.
-- 341 tests pass on SQLite; 10 PostgreSQL-only concurrency cases are skipped there.
+- 352 tests pass on PostgreSQL and 342 on SQLite for the final portal configuration change;
+  10 PostgreSQL-only concurrency cases are skipped on SQLite. CI checks both supported Django versions.
 - Ruff E/W/F, JavaScript syntax, Django system checks, migration drift and static collection pass.
 - OpenAPI 3.1 validation and route matching pass.
 - GitHub CI passed for the initial review commit; follow-up CI is recorded in the pull request.
@@ -46,8 +46,19 @@ slugs. Production must use `plane.settings`/`plane.urls` and have no `/_uat/*` r
 Public Clerk signing-key discovery succeeded over verified TLS. This confirms key retrieval only,
 not a provider-authenticated user session or lifecycle webhook delivery.
 
-Pending: dashboard sign-in, real Stripe sandbox Checkout/portal/cancellation/meter UAT,
-Clerk webhook configuration and provider-connected browser sign-in, new provider configuration,
-backup and empty-catalog production validation. Use PROVIDER_SETUP.md and OPERATIONS.md.
+Real Stripe sandbox acceptance passed: hosted Checkout reported paid, application reconciliation
+granted Pro, 10,000 overage credits appeared in Stripe's meter summary, replay/cap protection held,
+and the dedicated portal scheduled cancellation while preserving paid access through period end.
+A provider-generated, CLI-forwarded webhook passed signature verification and reconciliation.
+Identity-deletion cleanup canceled the test subscription without immediate invoicing or proration.
+No real funds moved. The immediate meter summary check does not replace delayed reconciliation.
+
+Browser acceptance also verified the empty catalog and unavailable Pro purchase state, ordinary
+staff denial, the denial-page return link, and superuser receipt inspection without cached records
+or edit controls. A restored production backup passed additive migrations with historical table
+counts preserved and all new marketplace tables empty.
+
+Pending: Clerk webhook cutover and provider-connected browser sign-in, final deployment and
+empty-catalog production validation. Use PROVIDER_SETUP.md and OPERATIONS.md.
 `marketplace_preflight --production --require-empty` is a read-only launch gate. Do not claim
 completion from this local ledger alone; private enterprise receipts record actual deployments.

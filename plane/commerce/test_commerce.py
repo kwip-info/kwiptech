@@ -488,6 +488,9 @@ def test_checkout_reuses_session_and_trusted_customer(principal):
     api.v1.checkout.sessions.create.assert_called_once()
     params = api.v1.checkout.sessions.create.call_args.args[0]
     assert params['customer'] == 'cus_created'
+    assert params['custom_text']['submit']['message'] == (
+        'Pro includes 100,000 credits per billing month. Paid overage stays off until you enable it '
+        'in your KWIP Account, with an explicit spending cap.')
     assert params['line_items'] == [{'price': 'price_pro', 'quantity': 1}, {'price': 'price_meter'}]
     assert BillingAccount.objects.get().status == 'free'
     assert not BillingAccount.objects.get().overage_enabled
@@ -545,3 +548,14 @@ def test_deletion_cancels_subscription_before_local_webhook_mapping(principal):
     api.v1.subscriptions.cancel.assert_called_once()
     account.refresh_from_db()
     assert account.cancellation_completed_at
+
+
+@override_settings(MARKET_STRIPE_PORTAL_CONFIGURATION_ID='bpc_marketplace_test')
+def test_portal_uses_explicit_marketplace_configuration(principal):
+    from .stripe_gateway import portal
+    pro(principal)
+    api = Mock()
+    api.v1.billing_portal.sessions.create.return_value = {'url': 'https://billing.stripe.com/test'}
+    with patch('plane.commerce.stripe_gateway.client', return_value=api):
+        portal(principal.workspace)
+    assert api.v1.billing_portal.sessions.create.call_args.args[0]['configuration'] == 'bpc_marketplace_test'

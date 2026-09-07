@@ -98,6 +98,9 @@ def checkout(workspace):
         result = api.v1.checkout.sessions.create({'mode': 'subscription', 'customer': customer_id,
             'line_items': [{'price': option('STRIPE_PRO_PRICE_ID'), 'quantity': 1}, {'price': option('STRIPE_OVERAGE_PRICE_ID')}],
             'subscription_data': {'metadata': {'kwip_workspace': str(workspace.pk)}},
+            'custom_text': {'submit': {'message': (
+                f"Pro includes {option('PRO_CREDITS', 100000):,} credits per billing month. "
+                'Paid overage stays off until you enable it in your KWIP Account, with an explicit spending cap.')}},
             'client_reference_id': str(workspace.pk), 'success_url': origin + '/account?billing=return',
             'cancel_url': origin + '/account?billing=cancel'}, options={'idempotency_key': 'kwip-checkout-' + generation})
         BillingAccount.objects.filter(workspace=workspace, checkout_generation=generation).update(
@@ -109,8 +112,12 @@ def portal(workspace):
     account = account_for(workspace)
     if not account.stripe_customer_id:
         raise Problem('no_billing_account', 'No Stripe billing account exists yet.', 409)
-    result = client().v1.billing_portal.sessions.create({'customer': account.stripe_customer_id,
-        'return_url': option('ORIGIN', 'https://kwip.tech').rstrip('/') + '/account'})
+    params = {'customer': account.stripe_customer_id,
+              'return_url': option('ORIGIN', 'https://kwip.tech').rstrip('/') + '/account'}
+    configuration = option('STRIPE_PORTAL_CONFIGURATION_ID', '')
+    if configuration:
+        params['configuration'] = configuration
+    result = client().v1.billing_portal.sessions.create(params)
     return {'url': result['url']}
 
 
