@@ -28,14 +28,13 @@ def test_moved_does_not_read_payload():
 def test_unknown_paths_are_not_open_redirects(path):
     assert Client().get(path).status_code == 404
 
-def test_neutral_landing_and_crawlers():
+def test_marketplace_landing_and_legacy_crawlers():
     client = Client()
     response = client.get('/')
     assert response.status_code == 200
-    assert b"We're preparing" in response.content
-    assert b'https://kwip.info/technology/digest/' in response.content
-    assert b'https://kwip.info/technology/pyscoped/' in response.content
-    assert b'<form' not in response.content
+    assert b"Find the facts." in response.content
+    assert b'https://kwip.info/technology/' in response.content
+    assert b'id="search-form"' in response.content
     assert b'https://kwip.info/sitemap.xml' in client.get('/robots.txt').content
     assert client.get('/llms.txt')['Location'] == 'https://kwip.info/technology/llms.txt'
 

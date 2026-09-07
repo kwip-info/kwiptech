@@ -1,0 +1,2813 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "KWIP Data Marketplace API",
+    "version": "2.0.0",
+    "description": "Public catalog, metered data delivery, scoped service keys, custom user-approved device linking, bounded Pro exports and operator push ingestion. Data is not seeded. This is HTTP API documentation, not an MCP server or OAuth specification. See /agents.txt. All JSON business responses use Cache-Control: no-store. Common peer ceiling 300 requests/minute; authenticated workspace default 120/minute, configurable. Honor Retry-After; metadata does not cost credits but is rate limited."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Same origin as the served specification; production https://kwip.tech."
+    }
+  ],
+  "paths": {
+    "/api/v2/datasets": {
+      "get": {
+        "operationId": "listDatasets",
+        "summary": "Explore public dataset metadata",
+        "description": "Free metadata. Only published datasets with active approved sources appear. At most 50 per page, slug order. next_after is an opaque continuation value to pass as after. No row preview is returned.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/datasets/{slug}": {
+      "get": {
+        "operationId": "getDataset",
+        "summary": "Read schema, source attribution and per-record credits",
+        "description": "",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dataset unavailable or unknown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/plans": {
+      "get": {
+        "operationId": "getPlans",
+        "summary": "Inspect configured allowances and purchase availability",
+        "description": "Prices/allowances are server configuration. purchases_available is false until billing is enabled and approved published records exist; it is not proof of provider readiness.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plans"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/datasets/{slug}/query": {
+      "post": {
+        "operationId": "queryDataset",
+        "summary": "Deliver a bounded metered record page",
+        "description": "Requires datasets:read. Request JSON maximum 32768 bytes; default limit 25, maximum 100. Charge = returned records \u00d7 dataset credits_per_record; empty pages cost zero. max_credits is an optional additional ceiling, not overage opt-in. Reuse the same key and identical full JSON for a retry; page/cursor changes need a new key. Workspace-wide receipt identity, cached replay 24h then 410 permanently. A signed 24h cursor pins snapshot/filter/projection/schema. Repeat filters and fields on each page; limit may change. Response maximum 1 MiB by default. Source/dataset revocation is checked on replay.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Delivery"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "request_budget_exceeded, quota_exceeded or spend_cap_exceeded; no debit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "receipt_expired or withdrawn dataset/source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Dataset unknown/unpublished.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Query"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "datasets:read"
+        ]
+      }
+    },
+    "/api/v2/account": {
+      "get": {
+        "operationId": "getAccount",
+        "summary": "Read current workspace and credential kind",
+        "description": "",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/keys": {
+      "get": {
+        "operationId": "listKeys",
+        "summary": "List up to 100 recent key metadata entries",
+        "description": "Browser session only. Tokens are never returned.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Key"
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "keys"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKey",
+        "summary": "Create a scoped service key",
+        "description": "Token shown only once; store securely. At most 50 live keys. An empty dataset/source restriction list is unrestricted, not deny-all. ingest:write requires operator identity and nonempty dataset_slugs plus source_slugs. These keys cannot register datasets/sources or manage billing. Source restrictions also constrain delivered provenance.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewKey"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "key_limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKey"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/keys/{key_id}": {
+      "delete": {
+        "operationId": "revokeKey",
+        "summary": "Revoke a workspace service key",
+        "description": "Revocation is idempotent for an existing key; foreign/unknown key returns 404.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revoked": {
+                      "const": true
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "revoked"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v2/device/start": {
+      "post": {
+        "operationId": "startDeviceLink",
+        "summary": "Start KWIP device linking",
+        "description": "Custom KWIP device linking, NOT OAuth/OIDC device authorization. Read scopes only. Maximum body 4096 bytes; 10 starts/minute per peer. Give user user_code and verification_uri; keep device_code private. Expires after 600 seconds.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceChallenge"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceStart"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/device/poll": {
+      "post": {
+        "operationId": "pollDeviceLink",
+        "summary": "Poll for a user-approved service key",
+        "description": "Maximum body 4096 bytes. Poll no faster than every five seconds (60/minute per peer overall). Approval yields one consumable 90-day service key. No refresh token. A lost successful token response requires a new linking flow; do not blindly retry until success.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "authorization_pending: wait; expired_grant/invalid_grant: stop and restart linking.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "access_denied: stop.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "slow_down/rate_limited: honor Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "key_limit: user must revoke an existing key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "device_code": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 100
+                  }
+                },
+                "additionalProperties": true,
+                "required": [
+                  "device_code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/device/approve": {
+      "get": {
+        "operationId": "inspectDeviceLink",
+        "summary": "Owner inspects pending link request",
+        "description": "User must verify the displayed name and requested scopes before deciding.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceReview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "user_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 12
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "decideDeviceLink",
+        "summary": "Owner explicitly approves or denies a pending link",
+        "description": "Maximum body 4096 bytes. Agents must not approve on behalf of the owner. Issued device keys have read scopes and no dataset/source restrictions; use browser-created restricted keys when narrower access is needed.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceReview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_code": {
+                    "type": "string",
+                    "maxLength": 12
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "deny"
+                    ]
+                  }
+                },
+                "additionalProperties": true,
+                "required": [
+                  "user_code",
+                  "decision"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/billing/usage": {
+      "get": {
+        "operationId": "getUsage",
+        "summary": "Inspect allowance, plan and spend cap",
+        "description": "Metadata is free. This does not enable overage or start payment.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountUsage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/billing/checkout": {
+      "post": {
+        "operationId": "startCheckout",
+        "summary": "Open owner-approved Stripe Checkout",
+        "description": "No request body or customer-selected price/customer IDs. Browser session only. Return URL is informational, not a paid entitlement. Owner completes Stripe action. Service keys are forbidden.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "url"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "catalog_empty/subscription_exists/billing_conflict (Checkout) or no_billing_account (Portal).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Billing disabled, misconfigured or provider unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/billing/portal": {
+      "post": {
+        "operationId": "openBillingPortal",
+        "summary": "Open owner billing management",
+        "description": "No request body or customer-selected price/customer IDs. Browser session only. Return URL is informational, not a paid entitlement. Owner completes Stripe action. Service keys are forbidden.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "url"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "catalog_empty/subscription_exists/billing_conflict (Checkout) or no_billing_account (Portal).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Billing disabled, misconfigured or provider unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/billing/overage": {
+      "post": {
+        "operationId": "setOverageConsent",
+        "summary": "Owner sets explicit overage consent and monthly cap",
+        "description": "Disabled by default. Enabling requires active Pro, configured meter, available data and positive cap. max_credits on a query/export does not enable this. No agent/service key may change consent.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountUsage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "spend_cap_cents": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "additionalProperties": true,
+                "required": [
+                  "enabled",
+                  "spend_cap_cents"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/exports": {
+      "get": {
+        "operationId": "listExports",
+        "summary": "List accessible recent Pro export jobs",
+        "description": "Requires active Pro plus datasets:read and exports:read. Applies key restrictions and live source rights; list considers newest 20 workspace jobs.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exports": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ExportJob"
+                      },
+                      "maxItems": 20
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "exports"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "datasets:read",
+          "exports:read"
+        ],
+        "x-pro-required": true
+      },
+      "post": {
+        "operationId": "createExport",
+        "summary": "Prepare a budget-limited Pro snapshot export",
+        "description": "Requires active Pro plus datasets:read and exports:read. Body maximum 16384 bytes. CREDIT CONSENT: records are charged when prepared even if never downloaded; downloading existing artifact adds no charge. max_credits is required; not overage opt-in. Default limits 10000 rows, 10 MiB, 1000000 credits, 20 unexpired jobs/workspace; deployment may change these. Same caller/key + identical request ID/input replays original job. Artifacts expire 24h after creation. Worker required. Partial is not complete.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportJob"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "pro_required, insufficient_scope or authority revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "export_empty, idempotency_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "export_expired; ID cannot be reused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "export_job_limit or throttled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "datasets:read",
+          "exports:read"
+        ],
+        "x-pro-required": true
+      }
+    },
+    "/api/v2/exports/{job_id}": {
+      "get": {
+        "operationId": "getExport",
+        "summary": "Inspect export status and charged preparation",
+        "description": "Rechecks requester and creator authority/Pro and source rights. download_ready does not bypass those checks. Poll conservatively and honor rate limits.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportJob"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authority/source revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or foreign workspace job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Expired artifact.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "datasets:read",
+          "exports:read"
+        ],
+        "x-pro-required": true
+      }
+    },
+    "/api/v2/exports/{job_id}/download": {
+      "get": {
+        "operationId": "downloadExport",
+        "summary": "Download an authorized prepared artifact",
+        "description": "No additional credits. Requires requester and original creator authority, active Pro, dataset/source approval. CSV is convenience projection with spreadsheet formula mitigation; JSONL retains full provenance. X-Export-Status marks complete/partial. No public artifact URLs.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Attachment filename."
+              },
+              "X-Export-Status": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "complete",
+                    "partial"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authority/source withdrawn.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown/foreign job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "export_not_ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "export_expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "datasets:read",
+          "exports:read"
+        ],
+        "x-pro-required": true
+      }
+    },
+    "/api/v2/operator/datasets": {
+      "post": {
+        "operationId": "registerDataset",
+        "summary": "Operator validates or registers dataset/schema",
+        "description": "Operator browser session required. Defaults to dry_run=true. No dynamic SQL table. Register draft, separately register/approve sources, then publish. Schema versions immutable/additive. HTTP dataset object excludes sources; CLI combined manifests have a different wrapper. Slug identifies upsert; no Idempotency-Key used. Maximum HTTP body 1 MiB.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string",
+                      "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "dry_run": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "slug",
+                    "status",
+                    "dry_run"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dataset": {
+                    "$ref": "#/components/schemas/DatasetManifest"
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": true,
+                "required": [
+                  "dataset"
+                ]
+              }
+            }
+          }
+        },
+        "x-required-scopes": [
+          "ingest:write"
+        ],
+        "x-operator-required": true
+      }
+    },
+    "/api/v2/operator/datasets/{slug}/sources": {
+      "post": {
+        "operationId": "registerSource",
+        "summary": "Operator validates or registers a rights-reviewed source",
+        "description": "Operator browser session required. Schema must already exist. Approval requires attribution/license evidence URL; operator must separately verify redistribution, retention, privacy, robots and rate policy. Merely public data/API access is not approval. URL is provenance; server does not fetch it. Maximum HTTP body 1 MiB.",
+        "security": [
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string",
+                      "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+                    },
+                    "rights_status": {
+                      "type": "string"
+                    },
+                    "dry_run": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": true,
+                  "required": [
+                    "slug",
+                    "rights_status",
+                    "dry_run"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "$ref": "#/components/schemas/SourceManifest"
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": true,
+                "required": [
+                  "source"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "ingest:write"
+        ],
+        "x-operator-required": true
+      }
+    },
+    "/api/v2/operator/datasets/{slug}/sources/{source_slug}/batches": {
+      "post": {
+        "operationId": "ingestBatch",
+        "summary": "Operator pushes a validated observation batch",
+        "description": "Requires operator identity and ingest:write; service keys need matching dataset/source restrictions. Source must be active/rights-approved even for dry run. HTTP body maximum 1 MiB (stricter than service canonical JSON 2000000-byte cap). Atomic 1\u2013500 items, unique external IDs per batch. Defaults dry run. Identity=(source,external_id); new batch creates observations even when unchanged. Same source/key/input replay returns original batch with replayed=true, including when dry_run requested. Conflicting input returns 400 validation_error, NOT 409. Tombstone requires empty payload. No source fetching or scheduling.",
+        "security": [
+          {
+            "ServiceKey": []
+          },
+          {
+            "BrowserSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_error including conflicting ingestion idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operator/scope/dataset/source access denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source unknown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "JSON error. Common statuses: 400 validation; 401 missing/invalid credential; 403 authority; 405 method; 413 size; 415 JSON media type; 429 throttled (Retry-After); 503 unavailable. Error codes are extensible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IngestItem"
+                    },
+                    "minItems": 1,
+                    "maxItems": 500
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "items"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+            }
+          },
+          {
+            "name": "source_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "x-required-scopes": [
+          "ingest:write"
+        ],
+        "x-operator-required": true
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ServiceKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "kwip_ service key",
+        "description": "Owner-created expiring/revocable service key; scopes datasets:read, exports:read, and operator-only ingest:write. Never sends key in URL."
+      },
+      "BrowserSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Clerk RS256 session JWT",
+        "description": "Short-lived active Clerk user session token from the configured first-party browser sign-in. Management actions require this scheme, not service keys. No cookie-only API authentication."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retry_after": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "required_credits": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": true,
+            "required": [
+              "code"
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "error"
+        ]
+      },
+      "Scalar": {
+        "type": [
+          "string",
+          "number",
+          "integer",
+          "boolean"
+        ],
+        "description": "Finite scalar matching the registered field type. Null and nested values are rejected. Integer fields are signed 64-bit; numeric fields have magnitude at most 1e100; strings at most 100000 characters."
+      },
+      "Filters": {
+        "type": "object",
+        "maxProperties": 10,
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Scalar"
+        },
+        "description": "Exact equality on schema fields, not operators or SQL. Datetime strings are compared literally. Omit or send null for no filters."
+      },
+      "FieldDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "datetime",
+              "date",
+              "enum"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100000
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ]
+      },
+      "FieldMap": {
+        "type": "object",
+        "minProperties": 1,
+        "maxProperties": 100,
+        "propertyNames": {
+          "pattern": "^(?!.*__)[a-z][a-z0-9_]{0,62}$"
+        },
+        "additionalProperties": {
+          "$ref": "#/components/schemas/FieldDefinition"
+        }
+      },
+      "SourceAttribution": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "attribution": {
+            "type": "string"
+          },
+          "license_url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "slug",
+          "name",
+          "attribution",
+          "license_url"
+        ]
+      },
+      "PublicSource": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "attribution": {
+            "type": "string"
+          },
+          "license_url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "slug",
+          "name",
+          "url",
+          "attribution",
+          "license_url"
+        ]
+      },
+      "Dataset": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "credits_per_record": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "url": {
+            "type": "string"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "slug",
+          "title",
+          "description",
+          "category",
+          "credits_per_record",
+          "updated_at",
+          "url",
+          "schema_version"
+        ]
+      },
+      "DatasetDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/FieldDefinition"
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PublicSource"
+                },
+                "maxItems": 100
+              },
+              "limits": {
+                "type": "object",
+                "properties": {
+                  "page_size": {
+                    "type": "integer"
+                  },
+                  "filters": {
+                    "type": "integer"
+                  },
+                  "cursor_lifetime_seconds": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": true,
+                "required": [
+                  "page_size",
+                  "filters",
+                  "cursor_lifetime_seconds"
+                ]
+              }
+            },
+            "additionalProperties": true,
+            "required": [
+              "fields",
+              "sources",
+              "limits"
+            ]
+          }
+        ]
+      },
+      "Catalog": {
+        "type": "object",
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dataset"
+            },
+            "maxItems": 50
+          },
+          "next_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "datasets",
+          "next_after"
+        ]
+      },
+      "Plans": {
+        "type": "object",
+        "properties": {
+          "free_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pro_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pro_monthly_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overage_cents_per_10000": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "usd"
+            ]
+          },
+          "purchases_available": {
+            "type": "boolean"
+          },
+          "catalog_has_data": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "free_credits",
+          "pro_credits",
+          "pro_monthly_cents",
+          "overage_cents_per_10000",
+          "currency",
+          "purchases_available",
+          "catalog_has_data"
+        ]
+      },
+      "Query": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Filters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8192
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_credits": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": []
+      },
+      "Record": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "schema_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceAttribution"
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Scalar"
+            }
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "external_id",
+          "revision",
+          "schema_version",
+          "source",
+          "source_url",
+          "observed_at",
+          "effective_at",
+          "content_hash",
+          "data"
+        ]
+      },
+      "DeliveryUsage": {
+        "type": "object",
+        "properties": {
+          "receipt_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overage_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "records": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining_credits": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "receipt_id",
+          "credits",
+          "overage_credits",
+          "records",
+          "remaining_credits"
+        ]
+      },
+      "Delivery": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            },
+            "maxItems": 100
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snapshot": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "usage": {
+            "$ref": "#/components/schemas/DeliveryUsage"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "records",
+          "count",
+          "next_cursor",
+          "snapshot",
+          "usage"
+        ]
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "boolean"
+          },
+          "authentication": {
+            "type": "string",
+            "enum": [
+              "session",
+              "service"
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "name",
+          "operator",
+          "authentication"
+        ]
+      },
+      "Key": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "datasets:read",
+                "exports:read",
+                "ingest:write"
+              ]
+            }
+          },
+          "dataset_slugs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_slugs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "dataset_slugs",
+          "source_slugs",
+          "expires_at",
+          "revoked"
+        ]
+      },
+      "CreateKey": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "datasets:read",
+                "exports:read",
+                "ingest:write"
+              ]
+            },
+            "minItems": 1
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 90
+          },
+          "dataset_slugs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_slugs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "name",
+          "scopes"
+        ]
+      },
+      "NewKey": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/Key"
+          },
+          "token": {
+            "type": "string"
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "key",
+          "token",
+          "notice"
+        ]
+      },
+      "DeviceStart": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "datasets:read",
+                "exports:read"
+              ]
+            },
+            "minItems": 1,
+            "default": [
+              "datasets:read"
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "name"
+        ]
+      },
+      "DeviceChallenge": {
+        "type": "object",
+        "properties": {
+          "device_code": {
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string"
+          },
+          "verification_uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expires_in": {
+            "type": "integer",
+            "const": 600
+          },
+          "interval": {
+            "type": "integer",
+            "const": 5
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "device_code",
+          "user_code",
+          "verification_uri",
+          "expires_in",
+          "interval",
+          "notice"
+        ]
+      },
+      "DeviceReview": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notice": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "denied"
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "name",
+          "scopes",
+          "expires_at",
+          "notice"
+        ]
+      },
+      "DeviceToken": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "key_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "access_token",
+          "token_type",
+          "key_id",
+          "expires_at",
+          "scopes"
+        ]
+      },
+      "AccountUsage": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro"
+            ]
+          },
+          "subscription_status": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "usd"
+            ]
+          },
+          "overage_enabled": {
+            "type": "boolean"
+          },
+          "billing_account_exists": {
+            "type": "boolean"
+          },
+          "billing_enabled": {
+            "type": "boolean"
+          },
+          "pricing_status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "configured"
+            ]
+          },
+          "included_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "used_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "remaining_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overage_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_overage_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spend_cap_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overage_cents_per_10000": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pro_monthly_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "plan",
+          "subscription_status",
+          "period_start",
+          "period_end",
+          "currency",
+          "overage_enabled",
+          "billing_account_exists",
+          "billing_enabled",
+          "pricing_status",
+          "included_credits",
+          "used_credits",
+          "remaining_credits",
+          "overage_credits",
+          "estimated_overage_cents",
+          "spend_cap_cents",
+          "overage_cents_per_10000",
+          "pro_monthly_cents"
+        ]
+      },
+      "ExportRequest": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Filters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "jsonl",
+              "csv"
+            ],
+            "default": "jsonl"
+          },
+          "max_credits": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Required consent ceiling. Deployment default maximum 1000000 credits; server configuration may lower or raise it."
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "dataset",
+          "max_credits"
+        ]
+      },
+      "ExportJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dataset": {
+            "type": "string",
+            "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "complete",
+              "partial",
+              "failed"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "jsonl",
+              "csv"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "download_ready": {
+            "type": "boolean"
+          },
+          "notice": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "max_credits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "snapshot": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "dataset",
+          "status",
+          "format",
+          "expires_at",
+          "error_code",
+          "download_ready",
+          "notice",
+          "rows",
+          "credits",
+          "max_credits",
+          "bytes",
+          "snapshot"
+        ]
+      },
+      "DatasetManifest": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "withdrawn"
+            ],
+            "default": "draft"
+          },
+          "credits_per_record": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "default": 1
+          },
+          "schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "fields": {
+            "$ref": "#/components/schemas/FieldMap"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "title",
+          "schema_version",
+          "fields"
+        ]
+      },
+      "SourceManifest": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[-a-zA-Z0-9_]{1,50}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "attribution": {
+            "type": "string"
+          },
+          "license_url": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "rights_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "blocked"
+            ],
+            "default": "pending"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "schema_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "name",
+          "url",
+          "schema_version"
+        ]
+      },
+      "IngestItem": {
+        "type": "object",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Scalar"
+            }
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          },
+          "tombstone": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "external_id",
+          "observed_at"
+        ]
+      },
+      "BatchResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "dry_run": {
+                "const": true
+              },
+              "validated": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "replayed": {
+                "const": false
+              }
+            },
+            "additionalProperties": true,
+            "required": [
+              "dry_run",
+              "validated",
+              "replayed"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "batch_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "versions_created": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "replayed": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": true,
+            "required": [
+              "batch_id",
+              "versions_created",
+              "replayed"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

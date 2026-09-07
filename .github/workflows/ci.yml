@@ -22,7 +22,9 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install ruff
-      - run: ruff check plane/ --select E,W --ignore E402,E501,E731,E741
+      - run: ruff check plane/ uat/ --select E,W,F --ignore E402,E501,E731,E741
+
+      - run: node --check static/market/app.js
 
   test:
     runs-on: ubuntu-latest
@@ -82,12 +84,16 @@ jobs:
           export GIT_ASKPASS="$RUNNER_TEMP/heroku-askpass"
           export GIT_TERMINAL_PROMPT=0
           git push "https://git.heroku.com/${HEROKU_APP_NAME}.git" HEAD:main --force
-      - name: Verify public cutover
+      - name: Verify marketplace and preserved cutover
         run: |
           curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 5 https://kwip.tech/healthz > "$RUNNER_TEMP/health.json"
           python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/health.json")); assert d["status"] == "ok" and d["ingestion"] == "retired" and d["pyscoped"] == "2.0.0"'
           code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{}' https://kwip.tech/v1/sync/batch)
           test "$code" = 410
-          curl --fail --silent --show-error https://kwip.tech/ | grep -q "We're preparing"
+          curl --fail --silent --show-error https://kwip.tech/ | grep -q "Find the facts."
+          curl --fail --silent --show-error https://kwip.tech/api/v2/datasets > "$RUNNER_TEMP/catalog.json"
+          python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/catalog.json")); assert isinstance(d["datasets"], list)'
+          code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://kwip.tech/_uat/session)
+          test "$code" = 404
           destination=$(curl --silent --show-error --output /dev/null --write-out '%{redirect_url}' https://kwip.tech/digest)
           test "$destination" = https://kwip.info/technology/digest/
