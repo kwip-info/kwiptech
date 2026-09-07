@@ -1,8 +1,68 @@
-# KWIP Technology
+# KWIP Data
 
-Neutral preparation website for [kwip.tech](https://kwip.tech). Digest and PyScoped
-information now lives at [kwip.info/technology](https://kwip.info/technology/).
+A data marketplace for people and agents at [kwip.tech](https://kwip.tech).
+Explore dataset metadata, retrieve attributable records through a bounded API,
+manage scoped service access, and track Free/Pro credits and optional Stripe overage.
+This release includes the framework **without production datasets or source crawlers**.
 MIT licensed. Canonical repository: https://github.com/kwip-info/kwiptech.
+Digest and free Django-only PyScoped remain at [kwip.info/technology](https://kwip.info/technology/).
+
+## Architecture and contracts
+
+- `plane/catalog`: versioned schemas, approved sources, idempotent ingestion and snapshot reads.
+- `plane/access`: Clerk sessions, scoped hashed service keys, explicit device approval, revocation.
+- `plane/commerce`: credit ledger, Free/Pro allowances, opted-in caps, Stripe outbox/reconciliation.
+- `plane/exports`: bounded asynchronous Pro exports and expiring download artifacts.
+- `plane/market`: public exploration, API facade and browser account UI.
+
+Start with [agent/API guidance](docs/marketplace/AGENT_GUIDE.md),
+[data contract](docs/marketplace/DATA_CONTRACT.md),
+[billing contract](docs/marketplace/BILLING_CONTRACT.md),
+[export contract](docs/marketplace/EXPORT_CONTRACT.md), and
+[operations](docs/marketplace/OPERATIONS.md). The machine-readable API is served at
+`/api/v2/openapi.json`; `/agents.txt` explains safe discovery and retry behavior.
+
+## Development
+
+Python 3.13, Django 5.2 or 6.0, PostgreSQL 18. Install `requirements-dev.txt` in a
+virtual environment, configure `DATABASE_URL` for a dedicated development database,
+then run:
+
+```sh
+python manage.py migrate
+python manage.py runserver
+python manage.py run_marketplace_worker
+```
+
+SQLite is supported for isolated unit tests, not concurrent account usage or billing.
+The local synthetic browser workflow is in [UAT](docs/marketplace/UAT.md).
+Use `.env-example` as a reference; Django reads environment variables directly.
+No default production credentials or datasets ship. A Django superuser can assign
+operator status after the intended Clerk identity has signed in; publisher keys require
+explicit dataset and source restrictions.
+
+```sh
+python -m pytest -q
+python manage.py collectstatic --noinput
+python -m pytest --ds=plane.settings -q
+python manage.py makemigrations --check --dry-run
+```
+
+The second test run uses the configured PostgreSQL database and checks concurrency.
+See CI for the Django5.2/6.0 matrix. Do not point tests at production.
+
+## Deployment
+
+GitHub CI tests before deploying main to the existing Heroku app `kwip-tech`.
+The release phase runs additive migrations and static collection; scale the worker
+explicitly. Preserve database backups before deployment. Keep provider keys, backups,
+source records and build artifacts out of this repository. Production receipts belong
+in the private enterprise operations repository.
+
+Purchases stay unavailable until approved published sources contain data. Billing
+requires new `MARKET_*` price, meter and webhook configuration; old PyScoped prices
+never grant marketplace entitlements. Prices are configurable and shown as proposed
+while purchases remain closed. Paid overage is disabled by default.
 
 ## PyScoped 2.0 cutover
 
@@ -16,31 +76,4 @@ additive audit tables. See [migration](docs/sdk/migration.md).
 Legacy product and documentation GET/HEAD URLs permanently redirect to their static
 kwip.info counterparts. Old Digest submissions return 410 without parsing or storing
 the body; the new page uses the existing KWIP Formspree provider. Django staff
-administration and historical leads remain available. Public routes require no
-database. Bundled documentation and old templates remain as historical source only.
-The neutral page makes no commitments about the product being prepared.
-
-## Development
-
-Python 3.13, Django 5.2 or 6.0. Create a virtual environment, install
-`requirements-dev.txt`, then set `DATABASE_URL=sqlite:///db.sqlite3` and run:
-
-```sh
-python manage.py migrate
-python manage.py runserver
-python -m pytest -q
-python manage.py makemigrations --check --dry-run
-```
-
-Use `.env-example` as a reference; Django reads environment variables directly.
-For staff access use Django's `createsuperuser`; no default credentials ship.
-
-## Deployment
-
-GitHub CI tests before deploying main to the existing Heroku app `kwip-tech`.
-The repository rename does not rename Heroku or change kwip.tech DNS.
-Configure `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`, and `DATABASE_URL` in Heroku.
-The release phase migrates additively and collects static files.
-Do not put tokens, database backups, or production records into this repository.
-Production backup/cutover/rollback evidence belongs in the private enterprise
-operations repository. Retain Heroku backups before deployment.
+administration and historical leads remain available. Legacy redirects and retirement responses require no database. Bundled documentation and old templates remain as historical source only.

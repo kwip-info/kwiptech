@@ -1,4 +1,4 @@
-"""Django settings for pyscoped management plane.
+"""Django settings for the KWIP data marketplace.
 
 Reads configuration from environment variables for 12-factor compliance.
 Docker Compose sets these via .env; Heroku sets them via config vars.
@@ -35,6 +35,10 @@ INSTALLED_APPS = [
     "plane.core",
     "plane.billing",
     "plane.public",
+    "plane.access",
+    "plane.catalog",
+    "plane.commerce",
+    "plane.exports",
 ]
 
 MIDDLEWARE = [
@@ -132,3 +136,32 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Marketplace configuration: explicit new boundaries; old service credentials are
+# retained for recovery and never imply old customer entitlements.
+MARKET_CLERK_ISSUER = os.environ.get("MARKET_CLERK_ISSUER", "")
+MARKET_CLERK_PUBLIC_KEY = os.environ.get("MARKET_CLERK_PUBLIC_KEY", "")
+MARKET_CLERK_PUBLISHABLE_KEY = os.environ.get("CLERK_PUBLISHABLE_KEY", "")
+MARKET_AUTHORIZED_PARTIES = os.environ.get("MARKET_AUTHORIZED_PARTIES", "https://kwip.tech,https://www.kwip.tech").split(",")
+MARKET_REQUESTS_PER_MINUTE = int(os.environ.get("MARKET_REQUESTS_PER_MINUTE", "120"))
+MARKET_ORIGIN = os.environ.get("MARKET_ORIGIN", "https://kwip.tech")
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1048576
+
+MARKET_TRUST_HEROKU_PROXY = os.environ.get("MARKET_TRUST_HEROKU_PROXY", "false").lower() == "true"
+
+MARKET_BILLING_ENABLED = os.environ.get("MARKET_BILLING_ENABLED", "false").lower() == "true"
+MARKET_STRIPE_SECRET_KEY = os.environ.get("MARKET_STRIPE_SECRET_KEY", "")
+MARKET_STRIPE_WEBHOOK_SECRET = os.environ.get("MARKET_STRIPE_WEBHOOK_SECRET", "")
+MARKET_STRIPE_PRO_PRICE_ID = os.environ.get("MARKET_STRIPE_PRO_PRICE_ID", "")
+MARKET_STRIPE_OVERAGE_PRICE_ID = os.environ.get("MARKET_STRIPE_OVERAGE_PRICE_ID", "")
+MARKET_STRIPE_METER_EVENT = os.environ.get("MARKET_STRIPE_METER_EVENT", "kwip_overage_credits")
+MARKET_STRIPE_LIVEMODE = os.environ.get("MARKET_STRIPE_LIVEMODE", "false").lower() == "true"
+MARKET_FREE_CREDITS = int(os.environ.get("MARKET_FREE_CREDITS", "1000"))
+MARKET_PRO_CREDITS = int(os.environ.get("MARKET_PRO_CREDITS", "100000"))
+MARKET_PRO_MONTHLY_CENTS = int(os.environ.get("MARKET_PRO_MONTHLY_CENTS", "2900"))
+MARKET_OVERAGE_CENTS_PER_10000 = int(os.environ.get("MARKET_OVERAGE_CENTS_PER_10000", "100"))
+
+MARKET_CLERK_WEBHOOK_SECRET = os.environ.get("MARKET_CLERK_WEBHOOK_SECRET", "")
+MARKET_JWKS_REFRESH_SECONDS = 60
+MARKET_JWKS_CACHE_SECONDS = 300
+MARKET_JWKS_TIMEOUT_SECONDS = 5

@@ -4,3 +4,5 @@ pyscoped==2.0.0
 gunicorn>=22.0
 dj-database-url>=2.1
 whitenoise>=6.5
+PyJWT[crypto]>=2.10,<3
+stripe>=14,<15
