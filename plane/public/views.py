@@ -352,13 +352,3 @@ def llms_txt(request):
     return _allow_crawlers(
         HttpResponse(body, content_type="text/markdown; charset=utf-8")
     )
-
-
-def sign_in(request, rest=None):
-    """Sign-in page with embedded Clerk SignIn component."""
-    return render(request, "auth/sign_in.html")
-
-
-def sign_up(request, rest=None):
-    """Sign-up page with embedded Clerk SignUp component."""
-    return render(request, "auth/sign_up.html")

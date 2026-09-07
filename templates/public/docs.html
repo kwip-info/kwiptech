@@ -33,7 +33,7 @@
         <strong>For LLMs &amp; AI assistants:</strong>
         Download <a href="{% url 'public:claude_md' %}" class="text-brand-600 hover:text-brand-500 font-medium">CLAUDE.md</a>
         or <a href="{% url 'public:agents_md' %}" class="text-brand-600 hover:text-brand-500 font-medium">AGENTS.md</a>
-        and add it to your workspace for full framework context, including the
+        and add it to your workspace for Django integration context, including the
         <code class="text-xs bg-gray-200 rounded px-1.5 py-0.5">pyscoped</code> integration.
         Or fetch programmatically:
         <code class="ml-1 text-xs bg-gray-200 rounded px-1.5 py-0.5">GET /docs/claude.md</code>
@@ -46,12 +46,12 @@
     {% if platform_categories %}
     <div class="mt-12">
         <h2 class="text-xl font-bold text-gray-900 border-b border-gray-200 pb-3">Platform</h2>
-        <p class="mt-2 text-sm text-gray-500">Management plane — REST API, dashboard, deployment, and architecture.</p>
+        <p class="mt-2 text-sm text-gray-500">Product information and self-hosted runtime guidance. Hosted PyScoped services are retired.</p>
         <div class="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-2">
             {% for category in platform_categories %}
             {% if category.pages %}
             <div>
-                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">{{ category.label }}</h3>
+                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">{{ category.label|default:category.title }}</h3>
                 <ul class="mt-3 space-y-3">
                     {% for page in category.pages %}
                     <li>
@@ -75,12 +75,12 @@
     {% if sdk_categories %}
     <div class="mt-16">
         <h2 class="text-xl font-bold text-gray-900 border-b border-gray-200 pb-3">pyscoped SDK</h2>
-        <p class="mt-2 text-sm text-gray-500">Framework library — objects, scopes, audit, secrets, and integrations.</p>
+        <p class="mt-2 text-sm text-gray-500">Django tenant scoping, transactional audit history, and incremental adoption.</p>
         <div class="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-2">
             {% for category in sdk_categories %}
             {% if category.pages %}
             <div>
-                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">{{ category.label }}</h3>
+                <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">{{ category.label|default:category.title }}</h3>
                 <ul class="mt-3 space-y-3">
                     {% for page in category.pages %}
                     <li>
@@ -121,7 +121,7 @@
             </div>
             <div class="rounded-md border border-gray-200 bg-white px-4 py-3">
                 <p class="font-mono text-xs text-gray-500">GET</p>
-                <p class="font-mono text-gray-900">/docs/raw/{'{path}'}</p>
+                <p class="font-mono text-gray-900">/docs/raw/&lt;path&gt;</p>
                 <p class="mt-1 text-gray-500">Raw markdown (SDK)</p>
             </div>
             <div class="rounded-md border border-gray-200 bg-white px-4 py-3">

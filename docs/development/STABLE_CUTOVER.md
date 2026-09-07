@@ -22,3 +22,12 @@ Historical row counts remain unchanged. An isolated mapping of an existing lead
 table passed baseline, audited write, chain verification, and cross-scope denial;
 trial writes were rolled back. No production lead was changed.
 Desktop preview verified homepage and free-library pricing with Digest terms intact.
+
+Phase 4 complete: SDK 2.0.0 published through trusted publishing; site repository
+renamed to kwip-info/kwiptech and made public under MIT. Cutover commit 08b2a02
+passed CI run 34143419974 and deployed successfully. Live homepage, pricing, docs,
+Digest, and health endpoint return 200; retired API/dashboard/auth/webhooks return
+410, including POST ingestion. Production historical counts remain unchanged.
+A browser check caught stale documentation-hub copy and missing category labels;
+this follow-up corrects them and removes unreachable legacy sign-in views.
+All migration phases are complete; enterprise operations owns final release receipts.

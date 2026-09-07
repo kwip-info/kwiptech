@@ -82,3 +82,9 @@ jobs:
           export GIT_ASKPASS="$RUNNER_TEMP/heroku-askpass"
           export GIT_TERMINAL_PROMPT=0
           git push "https://git.heroku.com/${HEROKU_APP_NAME}.git" HEAD:main --force
+      - name: Verify public cutover
+        run: |
+          curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 5 https://kwip.tech/healthz > "$RUNNER_TEMP/health.json"
+          python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/health.json")); assert d["status"] == "ok" and d["ingestion"] == "retired" and d["pyscoped"] == "2.0.0"'
+          code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{}' https://kwip.tech/v1/sync/batch)
+          test "$code" = 410
