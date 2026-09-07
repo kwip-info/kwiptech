@@ -186,4 +186,11 @@ pre:focus-visible{outline:2px solid var(--link);outline-offset:4px}
 
 #sign-in .cl-rootBox,#sign-in .cl-cardBox{width:100%;max-width:100%}
 #sign-in .cl-card{box-shadow:none;border:1px solid var(--line)}
-
+/* The page already supplies the sign-in title and brand. Avoid duplicate headings. */
+#sign-in .cl-header{display:none}
+#sign-in .cl-rootBox,#sign-in .cl-signIn-root{width:100%;max-width:100%}
+#sign-in .cl-cardBox{width:100%;max-width:100%;box-shadow:none}
+#sign-in .cl-card{width:100%;max-width:100%;padding:2rem;box-sizing:border-box}
+#sign-in button{background-image:none}
+#sign-in input:focus{outline-width:2px;box-shadow:none}
+@media(max-width:650px){#sign-in .cl-card{padding:1.25rem}}

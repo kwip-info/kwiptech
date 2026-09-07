@@ -29,7 +29,7 @@ active navigation. Individual screen titles improve browser history and navigati
 Accessible focus, 44px primary controls, readable disabled controls, restrained tables,
 responsive forms and code blocks. No new dependencies or third-party assets.
 
-## Phase 3 — validation complete; deployment pending
+## Phase 3 — validated and deployed
 
 Desktop/mobile visual pass over catalog, dataset, pricing, account, agent connection,
 private jobs details, sign-in, privacy and terms. Check both themes, persistence,
@@ -50,3 +50,10 @@ Primary white-on-pink contrast 4.60:1; muted text >=5.40:1; essential control bo
 Embedded sign-in uses Clerk's documented CSS appearance variables:
 https://clerk.com/docs/js-frontend/guides/customizing-clerk/appearance-prop/variables
 The provider-connected sign-in component receives final visual verification after deploy.
+
+Initial deployed receipt: commit929fa82, CI34170413557, Heroku v85. Real Clerk
+sign-in inherited the correct pink/charcoal colors but also inherited the large h1
+style; follow-up hides the redundant provider header (the page already has its h1)
+and constrains provider card width/padding. No authentication flow changes. Final
+release receipt is maintained in enterprise operations/KWIP_TECH_BRANDING_2026-09-07.md.
+Light-layout audit also passed all nine screens at320/768px.
