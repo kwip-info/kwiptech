@@ -1,0 +1,46 @@
+{
+  "manifest_version": 1,
+  "dataset": "us-jobs-poc",
+  "owner": "KWIP Technology",
+  "scope": "US first; explicitly US-eligible remote postings for the first POC",
+  "discovery": {
+    "cadence_days": 7,
+    "next_review_on": "2026-09-14",
+    "automatic_enrollment": false,
+    "instructions": "Review official free US job sources, rights, attribution, robots, limits and history. Record evidence and changes; do not contact suppliers, purchase, ingest or enable a new source automatically."
+  },
+  "sources": [
+    {
+      "id": "himalayas",
+      "name": "Himalayas",
+      "adapter": "himalayas_us_v1",
+      "status": "evaluation",
+      "cost": "free",
+      "endpoint": "https://himalayas.app/jobs/api/search?country=US&exclude_worldwide=true&sort=recent",
+      "robots_url": "https://himalayas.app/robots.txt",
+      "evidence_urls": ["https://himalayas.app/api", "https://himalayas.app/docs/openapi.json", "https://himalayas.app/terms"],
+      "reviewed_on": "2026-09-07",
+      "review_due_on": "2026-09-14",
+      "attribution": "Job data sourced from Himalayas. Standardized by KWIP for private evaluation; follow each source link for the original listing.",
+      "attribution_url": "https://himalayas.app",
+      "permission": "API-specific permission for internal dashboards and agents; paid redistribution and full exports are not cleared.",
+      "schedule": "manual",
+      "minimum_refresh_hours": 24,
+      "max_data_requests": 1,
+      "max_records": 20,
+      "max_response_bytes": 2000000,
+      "retention_days": 7,
+      "customer_access": false,
+      "exports": false,
+      "history": "Current bounded sample; observed versions only, never infer closure from absence.",
+      "excluded_fields": ["description", "excerpt", "companyLogo"],
+      "normalization_version": 1
+    },
+    {"id": "open-jobs", "name": "Open Jobs", "status": "pending", "url": "https://github.com/elliottdehn/open-jobs", "blocker": "Supported bulk collection policy, US coverage and employer-text rights unresolved; backend robots returned 401.", "review_due_on": "2026-09-14"},
+    {"id": "open-apply", "name": "Open-Apply", "status": "pending", "url": "https://huggingface.co/datasets/edwarddgao/open-apply-jobs", "blocker": "MIT packaging license excludes employer text; snapshot gaps and US coverage require evaluation.", "review_due_on": "2026-09-14"},
+    {"id": "greenhouse", "name": "Employer-authorized Greenhouse feeds", "status": "pending", "url": "https://docs.greenhouse.io/job-board.html", "blocker": "No employer permissions or board allowlist yet.", "review_due_on": "2026-09-14"},
+    {"id": "lever", "name": "Employer-authorized Lever feeds", "status": "pending", "url": "https://github.com/lever/postings-api", "blocker": "No employer permissions or board allowlist yet; respect one-second crawl delay.", "review_due_on": "2026-09-14"},
+    {"id": "ashby", "name": "Employer-authorized Ashby feeds", "status": "pending", "url": "https://developers.ashbyhq.com/docs/public-job-posting-api", "blocker": "No employer permissions; robots policy unresolved.", "review_due_on": "2026-09-14"},
+    {"id": "directemployers", "name": "DirectEmployers syndication", "status": "pending", "url": "https://directemployers.org/partnerships/", "blocker": "Partnership, cost and historical redistribution agreement required.", "review_due_on": "2026-09-14"}
+  ]
+}

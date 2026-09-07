@@ -169,9 +169,10 @@ def ingest_batch(source, items, idempotency_key, dry_run=False):
     request_hash = digest(items)
     # Dataset lock serializes writers across sources: committed version IDs form a
     # reliable snapshot watermark, including concurrent reads on PostgreSQL.
-    Dataset.objects.select_for_update().get(pk=source.dataset_id)
+    dataset = Dataset.objects.select_for_update().get(pk=source.dataset_id)
     source = Source.objects.select_for_update().select_related('schema').get(pk=source.pk)
-    if not source.active or source.rights_status != 'approved':
+    evaluation = source.rights_status == 'evaluation' and dataset.status == 'draft'
+    if not source.active or (source.rights_status != 'approved' and not evaluation):
         raise ValidationError('Source is inactive or redistribution rights are not approved.')
     previous = source.batches.filter(idempotency_key=idempotency_key).first()
     if previous:

@@ -11,6 +11,8 @@ urlpatterns = [
     path('plans', views.page, {'screen': 'plans'}),
     path('developers', views.page, {'screen': 'developers'}),
     path('account', views.page, {'screen': 'account'}),
+    path('account/jobs-poc', views.page, {'screen': 'jobs_poc'}),
+    path('api/v2/operator/jobs-poc', views.jobs_poc),
     path('account/connect', views.page, {'screen': 'connect'}),
     path('account/sign-in', views.page, {'screen': 'signin'}),
     path('api/v2/datasets', views.datasets),

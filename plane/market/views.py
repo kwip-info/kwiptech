@@ -138,6 +138,15 @@ def plans(request, principal):
             'currency': 'usd', 'purchases_available': bool(option('BILLING_ENABLED', False) and available_data()),
             'catalog_has_data': available_data()}
 
+
+@endpoint()
+def jobs_poc(request, principal):
+    principal = refresh_principal(principal)
+    principal.require_browser()
+    principal.require('ingest:write', dataset='us-jobs-poc', source='himalayas')
+    from plane.catalog.connectors.jobs import preview
+    return preview()
+
 @require_safe
 def policy(request, kind):
     return render(request, 'market/policy.html', context() | {'kind': kind})

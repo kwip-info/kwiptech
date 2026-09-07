@@ -3,7 +3,8 @@
 A data marketplace for people and agents at [kwip.tech](https://kwip.tech).
 Explore dataset metadata, retrieve attributable records through a bounded API,
 manage scoped service access, and track Free/Pro credits and optional Stripe overage.
-This release includes the framework **without production datasets or source crawlers**.
+The public catalog remains empty. A bounded, operator-only US jobs POC can collect
+one attributed evaluation sample on Heroku; it does not enable customer delivery.
 MIT licensed. Canonical repository: https://github.com/kwip-info/kwiptech.
 Digest and free Django-only PyScoped remain at [kwip.info/technology](https://kwip.info/technology/).
 
@@ -21,6 +22,10 @@ Start with [agent/API guidance](docs/marketplace/AGENT_GUIDE.md),
 [export contract](docs/marketplace/EXPORT_CONTRACT.md), and
 [operations](docs/marketplace/OPERATIONS.md). The machine-readable API is served at
 `/api/v2/openapi.json`; `/agents.txt` explains safe discovery and retry behavior.
+
+The [jobs POC](docs/marketplace/JOBS_POC.md) and
+[source manifest](plane/catalog/job_sources.json) record normalization, collection
+budgets, attribution, retention and recurring source-review dates.
 
 ## Development
 

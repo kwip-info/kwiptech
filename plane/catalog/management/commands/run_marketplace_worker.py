@@ -72,6 +72,8 @@ def execute_task(name, limit):
             return 'skipped: billing disabled or provider configuration incomplete'
         call_command('reconcile_billing', limit=limit, stdout=output)
     elif name == 'cleanup':
+        from plane.catalog.connectors.jobs import purge_expired
+        output.write(f'Expired evaluation versions removed: {purge_expired()}. ')
         call_command('cleanup_exports', limit=limit, stdout=output)
         call_command('purge_delivery_cache', limit=limit, stdout=output)
         output.write(str(cleanup_access(limit)))

@@ -2,8 +2,10 @@
 
 The marketplace stores versioned JSON records against explicitly registered typed schemas.
 “Register a table” creates a dataset and schema, never a dynamic SQL table or executable query.
-There are no automatic production seeds, external fetches, or schedules. Registration and
+There are no automatic production seeds or collection schedules. Registration and
 batch ingestion are operator capabilities, separate from customer read credentials.
+The separately invoked jobs POC connector performs one bounded hosted fetch;
+registration and batch ingestion themselves never fetch source URLs.
 
 ## Repeatable registration
 
@@ -46,6 +48,10 @@ Approval requires attribution and a license/evidence URL. This records an operat
 not automated legal verification. Source discovery alone never implies permission to redistribute.
 Before approval, operators must review licensing, privacy, robots.txt, access terms, rate limits,
 and retention requirements. Inactive, pending, or blocked sources cannot ingest or deliver data.
+The separate `evaluation` rights status permits ingestion only into draft datasets,
+with attribution/evidence required. It is not approved commercial redistribution;
+public reads, exports and purchase availability still require `approved` sources.
+Only browser-authenticated KWIP operators can inspect the private jobs POC preview.
 Published datasets must have an active approved source; withdrawal immediately stops public reads.
 Admin is trusted operator access. Bulk ORM updates bypass Django validation and are not a supported
 registration interface; use services, commands, or the validated admin forms.
@@ -117,5 +123,8 @@ The indexed `(record_id, revision_id)` history supports latest-revision lookup. 
 still scan as collections grow. Before large ingestion, measure production query plans, add
 reviewed PostgreSQL expression/GIN indexes for known demand, and consider materialized current
 records plus snapshot export jobs. Do not let connectors create arbitrary indexes or SQL. Batch
-limits bound request memory, not total collection size. Durable task scheduling, backoff, provider
-credentials, deletion policy, and connector-specific normalizers are later connector work.
+limits bound request memory, not total collection size. The bounded jobs POC now supplies
+one source adapter, durable request reservations, retry timing and seven-day evaluation
+retention. Broader scheduling, paid-source credentials and source-specific deletion
+policies remain later connector work. POC retention is an explicit exception to the
+ordinary retained marketplace revision history above.

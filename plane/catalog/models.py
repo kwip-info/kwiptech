@@ -61,7 +61,7 @@ class Source(models.Model):
     url = models.URLField(max_length=2000)
     attribution = models.TextField(blank=True)
     license_url = models.URLField(max_length=2000, blank=True)
-    rights_status = models.CharField(max_length=12, choices=[(v, v) for v in ('pending', 'approved', 'blocked')], default='pending')
+    rights_status = models.CharField(max_length=12, choices=[(v, v) for v in ('pending', 'evaluation', 'approved', 'blocked')], default='pending')
     active = models.BooleanField(default=True)
     schema = models.ForeignKey(SchemaVersion, on_delete=models.PROTECT, related_name='sources')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -77,8 +77,25 @@ class Source(models.Model):
                 raise ValidationError('Source identity is immutable; register another source.')
         if self.schema_id and self.schema.dataset_id != self.dataset_id:
             raise ValidationError('Schema must belong to source dataset.')
-        if self.rights_status == 'approved' and not (self.attribution and self.license_url):
+        if self.rights_status in ('evaluation', 'approved') and not (self.attribution and self.license_url):
             raise ValidationError('Approved rights require attribution and a license/evidence URL.')
+        if self.rights_status == 'evaluation' and self.dataset.status != 'draft':
+            raise ValidationError('Evaluation sources require a draft dataset.')
+
+
+class CollectionState(models.Model):
+    source = models.OneToOneField(Source, on_delete=models.PROTECT, related_name='collection_state')
+    next_allowed_at = models.DateTimeField(null=True, blank=True)
+    last_success_batch = models.ForeignKey('IngestionBatch', null=True, blank=True, on_delete=models.SET_NULL)
+
+
+class CollectionRun(models.Model):
+    source = models.ForeignKey(Source, on_delete=models.PROTECT, related_name='collection_runs')
+    started_at = models.DateTimeField()
+    finished_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, default='running')
+    manifest_hash = models.CharField(max_length=64)
+    summary = models.JSONField(default=dict)
 
 
 class IngestionBatch(models.Model):
