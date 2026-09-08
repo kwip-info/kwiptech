@@ -1,4 +1,5 @@
 """Bounded, evaluation-only jobs connector. No discovery-driven network access."""
+import copy
 import hashlib
 import json
 import math
@@ -21,6 +22,8 @@ from django.utils.html import strip_tags
 
 from plane.catalog.models import CollectionRun, CollectionState, Dataset, IngestionBatch, Record, RecordVersion
 from plane.catalog.services import aware_datetime, digest, ingest_batch, register_dataset, register_source
+
+from . import nyc_jobs
 
 MANIFEST = Path(__file__).resolve().parents[1] / 'job_sources.json'
 ENDPOINT = 'https://himalayas.app/jobs/api/search?country=US&exclude_worldwide=true&sort=recent'
@@ -89,20 +92,29 @@ def manifest():
     return json.loads(MANIFEST.read_text())
 
 
+def adapter(source_id):
+    if source_id == 'himalayas':
+        return ENDPOINT, ROBOTS, 'himalayas_us_v1', 2, normalize_response
+    if source_id == 'nyc-dcas':
+        return nyc_jobs.ENDPOINT, nyc_jobs.ROBOTS, 'nyc_dcas_v1', 3, nyc_jobs.normalize_response
+    raise CollectionError('source_not_enabled_for_evaluation')
+
+
 def policy(source_id='himalayas', now=None):
     now = now or timezone.now()
+    endpoint, robots, adapter_name, version, _ = adapter(source_id)
     data = manifest()
     source = next((s for s in data['sources'] if s['id'] == source_id), None)
-    if not source or source.get('status') != 'evaluation' or source.get('adapter') != 'himalayas_us_v1':
+    if not source or source.get('status') != 'evaluation' or source.get('adapter') != adapter_name:
         raise CollectionError('source_not_enabled_for_evaluation')
     if date.fromisoformat(source['review_due_on']) <= now.date():
         raise CollectionError('source_policy_review_due')
     # A manifest edit cannot turn the bounded POC into an arbitrary crawler.
-    if (source['endpoint'] != ENDPOINT or source['robots_url'] != ROBOTS
+    if (source['endpoint'] != endpoint or source['robots_url'] != robots
             or source['customer_access'] is not False or source['exports'] is not False
             or source['max_data_requests'] != 1 or source['max_records'] != 20
             or source['minimum_refresh_hours'] < 24 or source['retention_days'] != 7
-            or source['normalization_version'] != 2
+            or source['normalization_version'] != version
             or source['max_response_bytes'] != 2_000_000):
         raise CollectionError('unsupported_collection_policy')
     return source
@@ -270,10 +282,10 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def http_get(url, max_bytes):
-    if url not in (ROBOTS, ENDPOINT):
+    if url not in (ROBOTS, ENDPOINT, nyc_jobs.ROBOTS, nyc_jobs.ENDPOINT):
         raise CollectionError('endpoint_not_allowlisted')
     opener = build_opener(NoRedirect(), HTTPSHandler(context=ssl.create_default_context(cafile=certifi.where())))
-    request = Request(url, headers={'User-Agent': USER_AGENT, 'Accept': 'text/plain' if url == ROBOTS else 'application/json', 'Accept-Encoding': 'identity'})
+    request = Request(url, headers={'User-Agent': USER_AGENT, 'Accept': 'text/plain' if url in (ROBOTS, nyc_jobs.ROBOTS) else 'application/json', 'Accept-Encoding': 'identity'})
     try:
         response = opener.open(request, timeout=20)
     except HTTPError as exc:
@@ -305,15 +317,23 @@ def prepare_source(p):
     existing = Dataset.objects.select_for_update().get(pk=existing.pk)
     if existing.status != 'draft':
         raise CollectionError('evaluation_dataset_not_draft')
-    dataset = register_dataset({'slug': 'us-jobs-poc', 'title': 'US remote jobs · private POC',
+    version = adapter(p['id'])[3]
+    fields = copy.deepcopy(FIELDS)
+    if version == 3:
+        fields['eligibility']['values'].append('us_agency_posting')
+        fields['remote'].pop('required')
+        fields['salary_period']['values'].append('daily')
+        for key in ('source_posting_date', 'source_updated_date', 'source_process_date', 'source_closing_text', 'work_location', 'residency_requirement'):
+            fields[key] = {'type': 'string'}
+    dataset = register_dataset({'slug': 'us-jobs-poc', 'title': 'US jobs · private POC',
         'description': 'Small attributed current sample. US eligibility does not imply a US employer. No commercial distribution approved.',
-        'category': 'Jobs', 'schema_version': 2, 'fields': FIELDS, 'status': 'draft'})
+        'category': 'Jobs', 'schema_version': version, 'fields': fields, 'status': 'draft'})
     existing_source = dataset.sources.filter(slug=p['id']).first()
     if existing_source and (existing_source.rights_status != 'evaluation' or not existing_source.active):
         raise CollectionError('source_evaluation_disabled')
     source = register_source(dataset, {'slug': p['id'], 'name': p['name'], 'url': p['attribution_url'],
         'attribution': p['attribution'], 'license_url': p['evidence_urls'][0],
-        'rights_status': 'evaluation', 'schema_version': 2})
+        'rights_status': 'evaluation', 'schema_version': version})
     CollectionState.objects.get_or_create(source=source)
     return source
 
@@ -321,6 +341,7 @@ def prepare_source(p):
 def collect(source_id='himalayas', fetch=None, now=None):
     now, fetch = now or timezone.now(), fetch or http_get
     p = policy(source_id, now)
+    endpoint, robots, _, _, normalizer = adapter(source_id)
     source = prepare_source(p)
     with transaction.atomic():
         state = CollectionState.objects.select_for_update().get(source=source)
@@ -333,11 +354,11 @@ def collect(source_id='himalayas', fetch=None, now=None):
     receipt = {'robots_requests': 0, 'data_requests': 0}
     try:
         receipt['robots_requests'] = 1
-        status, headers, raw = fetch(ROBOTS, 500_000)
+        status, headers, raw = fetch(robots, 500_000)
         if status != 200:
             raise CollectionError('robots_unavailable', retry_time(headers, now) if status in (429, 503) else None)
         receipt['robots_sha256'] = hashlib.sha256(raw).hexdigest()
-        allowed, delay = robots_allowed(raw.decode('utf-8'), ENDPOINT)
+        allowed, delay = robots_allowed(raw.decode('utf-8'), endpoint)
         if not allowed:
             raise CollectionError('robots_disallowed')
         # Avoid unbounded sleeps. A future connector may persist a separate lease.
@@ -347,11 +368,11 @@ def collect(source_id='himalayas', fetch=None, now=None):
             import time
             time.sleep(delay)
         receipt['data_requests'] = 1
-        status, headers, raw = fetch(ENDPOINT, p['max_response_bytes'])
+        status, headers, raw = fetch(endpoint, p['max_response_bytes'])
         if status != 200:
             raise CollectionError('upstream_http_' + str(status), retry_time(headers, now) if status in (429, 503) else None)
         data = json.loads(raw, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-        items, summary = normalize_response(data, now.isoformat())
+        items, summary = normalizer(data, now.isoformat())
         receipt.update(summary)
         with transaction.atomic():
             # ingester rechecks active/evaluation rights and draft state after fetch.
@@ -401,22 +422,30 @@ def preview(now=None):
     data = manifest()
     result = {'sources': data['sources'], 'discovery': data['discovery'], 'records': [], 'runs': [], 'private': True,
               'notice': 'Private evaluation · current sample only · no customer access or exports'}
-    try:
-        p = policy(now=now)
-    except CollectionError as exc:
-        result['notice'] = exc.code.replace('_', ' ') + ' — sample hidden until reviewed.'
-        return result
-    source = Dataset.objects.filter(slug='us-jobs-poc', status='draft').first()
-    source = source.sources.filter(slug=p['id'], rights_status='evaluation', active=True).first() if source else None
-    if not source:
-        return result
-    state = CollectionState.objects.filter(source=source).first()
-    result['next_allowed_at'] = state.next_allowed_at.isoformat() if state and state.next_allowed_at else None
-    result['runs'] = [{'id': r.pk, 'status': r.status, 'started_at': r.started_at.isoformat(), 'summary': r.summary} for r in source.collection_runs.order_by('-id')[:10]]
-    if state and state.last_success_batch_id:
-        rows = RecordVersion.objects.filter(batch_id=state.last_success_batch_id, created_at__gte=now - timedelta(days=7)).select_related('record').order_by('id')[:20]
-        result['records'] = [{'id': r.record.external_id, 'data': r.payload, 'source_url': r.source_url,
-                              'source': r.source_metadata, 'observed_at': r.observed_at.isoformat(), 'content_hash': r.content_hash} for r in rows]
+    result['collection_status'] = []
+    dataset = Dataset.objects.filter(slug='us-jobs-poc', status='draft').first()
+    for entry in data['sources']:
+        if entry.get('status') != 'evaluation':
+            continue
+        try:
+            p = policy(entry['id'], now)
+        except CollectionError as exc:
+            result['collection_status'].append({'source': entry['id'], 'name': entry['name'], 'status': exc.code})
+            continue
+        source = dataset.sources.filter(slug=p['id'], rights_status='evaluation', active=True).first() if dataset else None
+        state = CollectionState.objects.filter(source=source).first() if source else None
+        next_at = state.next_allowed_at.isoformat() if state and state.next_allowed_at else None
+        result['collection_status'].append({'source': p['id'], 'name': p['name'], 'status': 'evaluation' if source else 'not_collected', 'next_allowed_at': next_at})
+        if p['id'] == 'himalayas':
+            result['next_allowed_at'] = next_at
+        if not source:
+            continue
+        result['runs'].extend({'id': r.pk, 'source': source.name, 'status': r.status, 'started_at': r.started_at.isoformat(), 'summary': r.summary} for r in source.collection_runs.order_by('-id')[:10])
+        if state and state.last_success_batch_id:
+            rows = RecordVersion.objects.filter(batch_id=state.last_success_batch_id, created_at__gte=now - timedelta(days=7)).select_related('record').order_by('id')[:20]
+            result['records'].extend({'id': r.record.external_id, 'source_id': p['id'], 'data': r.payload, 'source_url': r.source_url,
+                                     'source': r.source_metadata, 'observed_at': r.observed_at.isoformat(), 'content_hash': r.content_hash} for r in rows)
+    result['runs'] = sorted(result['runs'], key=lambda r: r['id'], reverse=True)[:10]
     result['summary'] = {'records': len(result['records']),
                          'companies': len({r['data'].get('company_source_id', r['data']['company']) for r in result['records']}),
                          'with_pay': sum('salary_currency' in r['data'] for r in result['records'])}

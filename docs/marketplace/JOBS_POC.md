@@ -129,3 +129,41 @@ and migration-drift checks pass. Browser UAT with 12 invented rows covered middl
 last pages, disabled boundaries, search reset, 10-row page size, detailed dates,
 plain-text description, close/focus behavior and 390px readable detail layout.
 No additional real collection was performed for this follow-up.
+
+## September 8 — source expansion, phase 1
+
+The second enabled adapter is NYC DCAS Jobs NYC Postings (`kpav-sd4t`). This expands
+the POC to US jobs, including external municipal postings; it does not label city
+jobs as remote or assume applicants meet residency requirements. DCAS publishes
+weekly. One authenticated-free Socrata API request examines at most20 external rows
+ordered by source update, after live robots review (currently one-second delay).
+The fixed endpoint, byte/row cap, no redirects, daily persisted budget and private
+seven-day retention match the existing connector's controls. No local job download.
+
+NYC Open Data FAQ states no use restrictions; its public policy manual describes
+provenance/version/modification identification and no completeness warranty. Dataset
+metadata has no separate licenseId. The POC stays evaluation/draft while commercial
+publication is a separate source-quality/rights decision. References live in the
+manifest; no City logo or endorsement is used. API requires no token for this sample.
+
+Schema3 is additive and source-scoped: Himalayas keeps schema2. NYC's calendar dates
+stay YYYY-MM-DD strings (no invented UTC instant), free-form closing text is retained,
+daily/hourly/annual salary periods stay distinct, remote is omitted when unknown,
+and qualifications/application instructions are included as bounded plain text.
+Recruitment-contact field is excluded. Duplicate/internal/malformed rows are rejected
+with counts, and source record links are not fabricated application links.
+
+```sh
+python manage.py collect_jobs_poc --source nyc-dcas
+heroku run 'python manage.py collect_jobs_poc --source nyc-dcas --collect' -a kwip-tech
+```
+
+Each source has an independent reservation and last successful batch. The operator
+preview combines up to20 records per enabled source; one source's failure/expired
+policy does not hide the other's sample. UI shows per-source next collection times
+and source-labelled receipts. This is still a sample, not bulk coverage or a schedule.
+
+Phases: rights/metadata review completed; adapter/schema/preview implementation and
+synthetic tests completed; 389 SQLite passes/11 skips and 400 PostgreSQL passes.
+Browser UAT verified combined samples, cross-source search, NYC calendar dates,
+residency/qualifications/pay and separate source budgets. Hosted collection pending.

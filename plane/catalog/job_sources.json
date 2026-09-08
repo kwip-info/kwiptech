@@ -1,8 +1,8 @@
 {
-  "manifest_version": 1,
+  "manifest_version": 2,
   "dataset": "us-jobs-poc",
   "owner": "KWIP Technology",
-  "scope": "US first; explicitly US-eligible remote postings for the first POC",
+  "scope": "US first; explicitly US-eligible remote postings and external NYC agency postings",
   "discovery": {
     "cadence_days": 7,
     "next_review_on": "2026-09-14",
@@ -18,7 +18,11 @@
       "cost": "free",
       "endpoint": "https://himalayas.app/jobs/api/search?country=US&exclude_worldwide=true&sort=recent",
       "robots_url": "https://himalayas.app/robots.txt",
-      "evidence_urls": ["https://himalayas.app/api", "https://himalayas.app/docs/openapi.json", "https://himalayas.app/terms"],
+      "evidence_urls": [
+        "https://himalayas.app/api",
+        "https://himalayas.app/docs/openapi.json",
+        "https://himalayas.app/terms"
+      ],
       "reviewed_on": "2026-09-07",
       "review_due_on": "2026-09-14",
       "attribution": "Job data sourced from Himalayas. Standardized by KWIP for private evaluation; follow each source link for the original listing.",
@@ -33,15 +37,155 @@
       "customer_access": false,
       "exports": false,
       "history": "Current bounded sample; observed versions only, never infer closure from absence.",
-      "excluded_fields": ["excerpt", "companyLogo"],
+      "excluded_fields": [
+        "excerpt",
+        "companyLogo"
+      ],
       "description_policy": "API-provided descriptions may be retained as plain text for the attributed private operator dashboard only; maximum 20000 characters, explicit truncation marker, seven-day primary-database retention. No paid redistribution or exports.",
       "normalization_version": 2
     },
-    {"id": "open-jobs", "name": "Open Jobs", "status": "pending", "url": "https://github.com/elliottdehn/open-jobs", "blocker": "Supported bulk collection policy, US coverage and employer-text rights unresolved; backend robots returned 401.", "review_due_on": "2026-09-14"},
-    {"id": "open-apply", "name": "Open-Apply", "status": "pending", "url": "https://huggingface.co/datasets/edwarddgao/open-apply-jobs", "blocker": "MIT packaging license excludes employer text; snapshot gaps and US coverage require evaluation.", "review_due_on": "2026-09-14"},
-    {"id": "greenhouse", "name": "Employer-authorized Greenhouse feeds", "status": "pending", "url": "https://docs.greenhouse.io/job-board.html", "blocker": "No employer permissions or board allowlist yet.", "review_due_on": "2026-09-14"},
-    {"id": "lever", "name": "Employer-authorized Lever feeds", "status": "pending", "url": "https://github.com/lever/postings-api", "blocker": "No employer permissions or board allowlist yet; respect one-second crawl delay.", "review_due_on": "2026-09-14"},
-    {"id": "ashby", "name": "Employer-authorized Ashby feeds", "status": "pending", "url": "https://developers.ashbyhq.com/docs/public-job-posting-api", "blocker": "No employer permissions; robots policy unresolved.", "review_due_on": "2026-09-14"},
-    {"id": "directemployers", "name": "DirectEmployers syndication", "status": "pending", "url": "https://directemployers.org/partnerships/", "blocker": "Partnership, cost and historical redistribution agreement required.", "review_due_on": "2026-09-14"}
+    {
+      "id": "nyc-dcas",
+      "name": "NYC DCAS \u00b7 Jobs NYC",
+      "adapter": "nyc_dcas_v1",
+      "status": "evaluation",
+      "cost": "free",
+      "endpoint": "https://data.cityofnewyork.us/resource/kpav-sd4t.json?%24where=posting_type%3D%27External%27&%24order=posting_updated+DESC%2Cjob_id+ASC&%24limit=20",
+      "robots_url": "https://data.cityofnewyork.us/robots.txt",
+      "evidence_urls": [
+        "https://opendata.cityofnewyork.us/faq/",
+        "https://cityofnewyork.github.io/opendatatsm/publicpolicies.html",
+        "https://data.cityofnewyork.us/City-Government/Jobs-NYC-Postings/kpav-sd4t",
+        "https://dev.socrata.com/docs/app-tokens.html"
+      ],
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "attribution": "Source: NYC Open Data / DCAS, Jobs NYC Postings (kpav-sd4t). Dates and pay standardized by KWIP; source descriptions retained as plain text. Independent service, not endorsed by NYC. Consult the source record and official application instructions.",
+      "attribution_url": "https://data.cityofnewyork.us/City-Government/Jobs-NYC-Postings/kpav-sd4t",
+      "permission": "NYC Open Data FAQ permits unrestricted reuse; public-policy manual requires provenance/version/modification identification when requested and disclaims completeness. No dataset-specific license recorded. Private evaluation only in this release; publication is a separate quality/rights decision.",
+      "schedule": "manual",
+      "minimum_refresh_hours": 24,
+      "max_data_requests": 1,
+      "max_records": 20,
+      "max_response_bytes": 2000000,
+      "retention_days": 7,
+      "customer_access": false,
+      "exports": false,
+      "history": "Upstream updates weekly and may overwrite history. Latest 20 external posting rows examined; observed versions only. Do not infer closure from absence.",
+      "excluded_fields": [
+        "recruitment_contact"
+      ],
+      "description_policy": "Public open-data description, qualifications and application instructions as plain text; maximum 20000 characters, seven-day POC retention.",
+      "normalization_version": 3,
+      "provider_update_frequency": "weekly"
+    },
+    {
+      "id": "open-jobs",
+      "name": "Open Jobs",
+      "status": "pending",
+      "url": "https://github.com/elliottdehn/open-jobs",
+      "blocker": "Supported bulk collection policy, US coverage and employer-text rights unresolved; backend robots returned 401.",
+      "review_due_on": "2026-09-14"
+    },
+    {
+      "id": "open-apply",
+      "name": "Open-Apply",
+      "status": "pending",
+      "url": "https://huggingface.co/datasets/edwarddgao/open-apply-jobs",
+      "blocker": "MIT packaging license excludes employer text; snapshot gaps and US coverage require evaluation.",
+      "review_due_on": "2026-09-14"
+    },
+    {
+      "id": "greenhouse",
+      "name": "Employer-authorized Greenhouse feeds",
+      "status": "pending",
+      "url": "https://docs.greenhouse.io/job-board.html",
+      "blocker": "No employer permissions or board allowlist yet.",
+      "review_due_on": "2026-09-14"
+    },
+    {
+      "id": "lever",
+      "name": "Employer-authorized Lever feeds",
+      "status": "pending",
+      "url": "https://github.com/lever/postings-api",
+      "blocker": "No employer permissions or board allowlist yet; respect one-second crawl delay.",
+      "review_due_on": "2026-09-14"
+    },
+    {
+      "id": "ashby",
+      "name": "Employer-authorized Ashby feeds",
+      "status": "pending",
+      "url": "https://developers.ashbyhq.com/docs/public-job-posting-api",
+      "blocker": "No employer permissions; robots policy unresolved.",
+      "review_due_on": "2026-09-14"
+    },
+    {
+      "id": "directemployers",
+      "name": "DirectEmployers syndication",
+      "status": "pending",
+      "url": "https://directemployers.org/partnerships/",
+      "blocker": "Partnership, cost and historical redistribution agreement required.",
+      "review_due_on": "2026-09-14"
+    },
+    {
+      "id": "dol-oflc",
+      "name": "DOL OFLC historical disclosures",
+      "url": "https://www.dol.gov/agencies/eta/foreign-labor/performance",
+      "status": "pending",
+      "blocker": "Next priority: separate administrative-opportunity schema, review official layouts and hosted download availability; never present determinations as current vacancies.",
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "research": "docs/marketplace/US_SOURCE_EXPANSION_RESEARCH.md"
+    },
+    {
+      "id": "montgomery-county",
+      "name": "Montgomery County open positions",
+      "url": "https://data.montgomerycountymd.gov/d/vds6-zrjk",
+      "status": "pending",
+      "blocker": "Freshness hold: source metadata last updated July 2024; mandatory attribution/disclaimer and historical-snapshot decision before use.",
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "research": "docs/marketplace/US_SOURCE_EXPANSION_RESEARCH.md"
+    },
+    {
+      "id": "usajobs",
+      "name": "USAJOBS",
+      "url": "https://developer.usajobs.gov/api-reference/",
+      "status": "pending",
+      "blocker": "Robots disallows API-host paths; standalone competing data-feed/resale restriction requires clarification.",
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "research": "docs/marketplace/US_SOURCE_EXPANSION_RESEARCH.md"
+    },
+    {
+      "id": "seasonaljobs",
+      "name": "DOL SeasonalJobs",
+      "url": "https://seasonaljobs.dol.gov/",
+      "status": "pending",
+      "blocker": "No verified supported bulk route; archive robots-disallowed; description reuse unresolved.",
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "research": "docs/marketplace/US_SOURCE_EXPANSION_RESEARCH.md"
+    },
+    {
+      "id": "remotive",
+      "name": "Remotive",
+      "url": "https://github.com/remotive-com/remote-jobs-api",
+      "status": "pending",
+      "blocker": "API route robots-disallowed; signup-gated display and downstream syndication restrictions conflict with this product.",
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "research": "docs/marketplace/US_SOURCE_EXPANSION_RESEARCH.md"
+    },
+    {
+      "id": "nsf",
+      "name": "NSF vacancies",
+      "url": "https://catalog.data.gov/dataset/nsf-vacancies-all-positions",
+      "status": "pending",
+      "blocker": "Catalog RSS now resolves to blocked HTML; openings robots-disallowed; no supported feed verified.",
+      "reviewed_on": "2026-09-08",
+      "review_due_on": "2026-09-15",
+      "research": "docs/marketplace/US_SOURCE_EXPANSION_RESEARCH.md"
+    }
   ]
 }
