@@ -49,11 +49,11 @@ export function createMotionController(reduced = matchMedia('(prefers-reduced-mo
     running.add(animation);
     animation.finished.then(() => { running.delete(animation); animation.cancel(); done?.(); }).catch(() => running.delete(animation));
   }
-  function present(stage, element, recipe, mode = 'remix') {
+  function present(stage, element, recipe, mode = 'remix', beforeAnimate = () => {}) {
     stop(); host = stage;
     const previous = stage.lastElementChild;
     if (reduced.matches || mode === 'off' || typeof element.animate !== 'function') {
-      stage.replaceChildren(element); return;
+      stage.replaceChildren(element); beforeAnimate(); return;
     }
     const gentle = mode === 'gentle';
     const duration = gentle ? 260 : recipe.duration;
@@ -61,6 +61,7 @@ export function createMotionController(reduced = matchMedia('(prefers-reduced-mo
       previous.dataset.outgoing = 'true'; previous.setAttribute('aria-hidden', 'true'); previous.inert = true;
     }
     stage.append(element);
+    beforeAnimate();
     animate(element, gentle ? [{opacity:0}, {opacity:1}] : transitionFrames(recipe), {
       duration, easing:'cubic-bezier(.22,.7,.2,1)', fill:'both',
     }, () => previous?.remove());

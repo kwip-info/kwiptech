@@ -32,7 +32,7 @@ function render(slide) {
   const credit = node('div','credit-line'), main = node('span','credit-main');
   if(item.kind === 'image') { main.append(link(`${item.title} · ${item.creator} · ${item.provider}`, item.source), document.createTextNode(' · '),link(item.license,item.license_url)); }
   else main.textContent = item.kind === 'chart' ? 'KWIP original · Invented numbers for improvisation. Not research.' : 'KWIP original · Improvisation prompt, not a factual assertion.';
-  credit.append(main,node('span','',`KWIP / ${String(position+1).padStart(3,'0')}`)); el.append(credit); motionController.present($('stage'),el,slide.motion || {transition:'dissolve',entrance:'lift',direction:1,duration:500,stagger:65,origin:'50% 50%'},motionMode); $('counter').textContent=String(position+1).padStart(3,'0'); $('previous').disabled=position===0; requestAnimationFrame(fitSlide);
+  credit.append(main,node('span','',`KWIP / ${String(position+1).padStart(3,'0')}`)); el.append(credit); motionController.present($('stage'),el,slide.motion || {transition:'dissolve',entrance:'lift',direction:1,duration:500,stagger:65,origin:'50% 50%'},motionMode,fitSlide); $('counter').textContent=String(position+1).padStart(3,'0'); $('previous').disabled=position===0;
 }
 function fitSlide() {
   const current = $('stage').lastElementChild;
@@ -51,7 +51,7 @@ function fitSlide() {
   }
   title.style.fontSize = `${low}px`;
 }
-new ResizeObserver(fitSlide).observe($('stage'));
+new ResizeObserver(() => { motionController.stop(); fitSlide(); }).observe($('stage'));
 async function advance() {
   if(busy || !active || $('sources').open) return; busy = true; const token = generation;
   try {
