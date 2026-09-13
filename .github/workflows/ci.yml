@@ -24,7 +24,7 @@ jobs:
       - run: pip install ruff
       - run: ruff check plane/ uat/ show/ tests_show/ --select E,W,F --ignore E402,E501,E731,E741
 
-      - run: node --check static/show/app.js && node --test tests_show/engine.test.mjs
+      - run: node --check static/show/app.js && node --test tests_show/*.test.mjs
 
   test:
     runs-on: ubuntu-latest

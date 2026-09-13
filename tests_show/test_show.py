@@ -48,3 +48,17 @@ class SlideTests(SimpleTestCase):
             self.assertTrue(item['image'].startswith('/static/show/originals/'))
             self.assertTrue(Path(item['image'].lstrip('/')).is_file())
             self.assertIn('AI-generated', item['credit'])
+
+    def test_module_imports_are_fingerprinted(self):
+        import tempfile
+        from pathlib import Path
+        from django.core.management import call_command
+        from django.contrib.staticfiles.storage import staticfiles_storage
+        with tempfile.TemporaryDirectory() as directory:
+            with override_settings(STATIC_ROOT=directory, STORAGES={'staticfiles': {'BACKEND': 'show.storage.SlideStaticStorage'}}):
+                call_command('collectstatic', interactive=False, verbosity=0)
+                storage = staticfiles_storage
+                app = (Path(directory) / storage.stored_name('show/app.js')).read_text()
+                engine = (Path(directory) / storage.stored_name('show/engine.mjs')).read_text()
+                self.assertIn(Path(storage.stored_name('show/engine.mjs')).name, app)
+                self.assertIn(Path(storage.stored_name('show/motion.mjs')).name, engine)

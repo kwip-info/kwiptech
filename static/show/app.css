@@ -13,3 +13,12 @@
 .content-page{max-width:780px;margin:60px auto;padding:0 24px}.content-page h1{font-size:clamp(40px,6vw,68px);line-height:1.03;letter-spacing:-3px}.content-page h2{font-size:24px;margin-top:42px;letter-spacing:-.7px}.content-page p{font-size:16px;line-height:1.8;color:#60646c}.content-page a{color:#be185d}
 
 .sample-front{padding:0}.sample-front>span:first-child{position:absolute;top:16px;left:20px;z-index:2;background:#181719d9;padding:6px 8px}.promo-cloud{width:100%;height:100%;object-fit:cover;display:block}.sample-front .sample-bottom{background:#181719e6;padding:6px 8px;bottom:12px;left:12px}.promo-icon{width:43px;height:43px;left:auto;right:9px;top:9px;transform:rotate(9deg);z-index:3}
+
+/* Transitions are interruptible WAAPI effects; old slides cannot capture input. */
+.slide[data-outgoing]{pointer-events:none}.slide{backface-visibility:hidden}.toolbar{min-width:min(680px,calc(100% - 20px))}#motion-toggle{white-space:nowrap}
+@media(prefers-reduced-motion:no-preference){.preview-stack .sample-back{animation:card-back 8s ease-in-out infinite}.preview-stack .sample-middle{animation:card-middle 10s ease-in-out infinite}.preview-stack .sample-front{animation:card-front 9s ease-in-out infinite}.promo-icon{animation:icon-bob 7s ease-in-out infinite}}
+@keyframes card-back{0%,100%{transform:rotate(8deg) translateY(0)}50%{transform:rotate(10deg) translateY(-8px)}}
+@keyframes card-middle{0%,100%{transform:rotate(-8deg) translateY(0)}50%{transform:rotate(-5deg) translateY(5px)}}
+@keyframes card-front{0%,100%{transform:rotate(5deg) translateY(0)}50%{transform:rotate(2deg) translateY(-7px)}}
+@keyframes icon-bob{0%,100%{transform:rotate(9deg)}50%{transform:rotate(-8deg)}}
+@media(max-width:600px){.toolbar{gap:0;padding:5px}.toolbar button{padding:9px 7px;font-size:11px}#motion-toggle{font-size:10px}.toolbar-divider{display:none}}

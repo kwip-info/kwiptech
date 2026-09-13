@@ -1,3 +1,4 @@
+import { motionRecipe } from './motion.mjs';
 export const palettes = ['paper', 'cobalt', 'citrus', 'rose', 'mint', 'ember', 'kwip', 'midnight', 'lavender', 'poolside', 'peach', 'newsprint'];
 export const styles = ['studio', 'blueprint', 'postcard', 'headline', 'cinema'];
 export const worlds = {
@@ -32,6 +33,7 @@ export class Bag {
 export class Ride {
   constructor(items, { seed = randomSeed(), mode = 'mixed', palette = 'random', style = 'random', world = 'everything' } = {}) {
     if (!['mixed', 'image', 'prompt'].includes(mode) || !['random', ...palettes].includes(palette) || !['random', ...styles].includes(style) || !(world in worlds)) throw new Error('Invalid presentation settings');
+    this.motionRandom = seeded(seed ^ 0x4B574950); this.lastTransition = null;
     this.seed = seed; this.random = seeded(seed); this.palette = palette; this.mode = mode; this.style = style; this.world = world;
     const subjects = worlds[world];
     const eligible = items.filter(i => (mode === 'mixed' || i.kind === mode) && (!subjects || i.kind !== 'image' || subjects.includes(i.topic)));
@@ -63,7 +65,9 @@ export class Ride {
       item = pool.values.find(candidate => candidate.id !== item.id);
     }
     this.recent.push(item.id); if (this.recent.length > 60) this.recent.shift();
-    return { item, palette: this.palette === 'random' ? this.colors.next() : this.palette,
+    const motion = motionRecipe(this.motionRandom, this.lastTransition);
+    this.lastTransition = motion.transition;
+    return { item, motion, palette: this.palette === 'random' ? this.colors.next() : this.palette,
       style: this.style === 'random' ? this.styles.next() : this.style, layout: this.layouts[kind].next() };
   }
 }

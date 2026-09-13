@@ -1,7 +1,10 @@
+import { createMotionController } from './motion.mjs';
 import { Ride } from './engine.mjs';
 const $ = id => document.getElementById(id);
 let items = [], ride, history = [], position = -1, active = false, busy = false, idleTimer, generation = 0;
 const imageCache = new Map();
+const motionController = createMotionController();
+let motionMode = 'remix';
 function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text) el.textContent = text; return el; }
 function link(text, url) { const el = node('a', '', text); if (/^https:\/\//.test(url || '')) el.href = url; el.target = '_blank'; el.rel = 'noopener noreferrer'; return el; }
 function warm(url) {
@@ -29,10 +32,11 @@ function render(slide) {
   const credit = node('div','credit-line'), main = node('span','credit-main');
   if(item.kind === 'image') { main.append(link(`${item.title} · ${item.creator} · ${item.provider}`, item.source), document.createTextNode(' · '),link(item.license,item.license_url)); }
   else main.textContent = item.kind === 'chart' ? 'KWIP original · Invented numbers for improvisation. Not research.' : 'KWIP original · Improvisation prompt, not a factual assertion.';
-  credit.append(main,node('span','',`KWIP / ${String(position+1).padStart(3,'0')}`)); el.append(credit); $('stage').replaceChildren(el); $('counter').textContent=String(position+1).padStart(3,'0'); $('previous').disabled=position===0; requestAnimationFrame(fitSlide);
+  credit.append(main,node('span','',`KWIP / ${String(position+1).padStart(3,'0')}`)); el.append(credit); motionController.present($('stage'),el,slide.motion || {transition:'dissolve',entrance:'lift',direction:1,duration:500,stagger:65,origin:'50% 50%'},motionMode); $('counter').textContent=String(position+1).padStart(3,'0'); $('previous').disabled=position===0; requestAnimationFrame(fitSlide);
 }
 function fitSlide() {
-  const title = $('stage').querySelector('h2'), body = $('stage').querySelector('.body');
+  const current = $('stage').lastElementChild;
+  const title = current?.querySelector('h2'), body = current?.querySelector('.body');
   if (!title || !body) return;
   title.style.fontSize = '';
   let size = parseFloat(getComputedStyle(title).fontSize);
@@ -52,20 +56,23 @@ async function advance() {
   } finally { if(token === generation) busy=false; }
 }
 function controls() { $('toolbar').classList.remove('idle'); clearTimeout(idleTimer); idleTimer=setTimeout(()=>{ if(active && !$('sources').open) $('toolbar').classList.add('idle'); },2600); }
-async function start() { generation++; busy=false; ride=new Ride(items,{mode:$('mode').value,palette:$('palette').value,style:$('style').value,world:$('world').value}); history=[];position=-1;upcoming=[];active=true;$('stage').replaceChildren();$('lobby').hidden=true;$('player').hidden=false;$('start').blur();await advance(); controls(); }
+async function start() { motionController.stop(); motionMode=$('motion').value; updateMotionButton(); generation++; busy=false; ride=new Ride(items,{mode:$('mode').value,palette:$('palette').value,style:$('style').value,world:$('world').value}); history=[];position=-1;upcoming=[];active=true;$('stage').replaceChildren();$('lobby').hidden=true;$('player').hidden=false;$('start').blur();await advance(); controls(); }
 async function fullscreen() { try { if(document.fullscreenElement) await document.exitFullscreen(); else await $('player').requestFullscreen(); } catch { $('player-status').textContent='Fullscreen is unavailable here. The presentation still works in this window.'; } }
 function showSources() {
-  controls(); const item=history[position]?.item; const box=$('current-source'); box.replaceChildren();
+  motionController.stop(); controls(); const item=history[position]?.item; const box=$('current-source'); box.replaceChildren();
   if(item) { box.append(node('h3','',item.title)); if(item.kind==='image') { box.append(node('p','',`${item.creator} · ${item.provider}`),link('Original source ↗',item.source),document.createTextNode(' · '),link(item.license,item.license_url)); if(item.credit) box.append(node('p','',item.credit)); box.append(node('p','quiet',item.changes)); } else box.append(node('p','',item.kind==='chart'?'Illustrative, invented data. KWIP original.':'Original KWIP improvisation prompt.')); }
   $('sources').showModal();
 }
 function download(asJson = false) {
-  const record={product:'KWIP',created_at:new Date().toISOString(),seed:ride?.seed,mode:ride?.mode,palette:ride?.palette,style:ride?.style,world:ride?.world,slides:history.map((slide,i)=>({number:i+1,...slide}))};
+  const record={product:'KWIP',created_at:new Date().toISOString(),seed:ride?.seed,mode:ride?.mode,motion:motionMode,palette:ride?.palette,style:ride?.style,world:ride?.world,slides:history.map((slide,i)=>({number:i+1,...slide}))};
   const credits = ['KWIP presentation credits', record.created_at, '', ...record.slides.flatMap(slide => { const item=slide.item; return [`Slide ${slide.number}: ${item.title}`, `${item.creator} · ${item.provider}`, item.kind === 'image' ? `${item.license}: ${item.license_url}` : 'Original improvisation material; charts contain invented numbers.', item.source, item.credit || '', item.changes || '', '']; })].join('\n');
   const blob=new Blob([asJson ? JSON.stringify(record,null,2) : credits],{type:asJson ? 'application/json' : 'text/plain'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=asJson ? 'kwip-session.json' : 'kwip-credits.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+function updateMotionButton() { $('motion-toggle').textContent=`Motion: ${motionMode}`; }
+function cycleMotion() { const modes=['remix','gentle','off']; motionMode=modes[(modes.indexOf(motionMode)+1)%modes.length]; $('motion').value=motionMode; motionController.stop(); updateMotionButton(); controls(); }
+$('motion-toggle').onclick=cycleMotion;
 $('start').onclick=start;$('next').onclick=advance;$('previous').onclick=()=>{if(!busy&&position>0){position--;render(history[position]);}};$('fullscreen').onclick=fullscreen;$('credits').onclick=showSources;$('download').onclick=()=>download();$('download-json').onclick=()=>download(true);$('close-sources').onclick=()=>$('sources').close();
-$('exit').onclick=async()=>{active=false;generation++;busy=false;if(document.fullscreenElement) await document.exitFullscreen().catch(()=>{});showSources();$('player').hidden=true;$('lobby').hidden=false;$('start').textContent='Present again ↗';};
-document.addEventListener('keydown',e=>{ if(!active||$('sources').open||e.altKey||e.ctrlKey||e.metaKey) return; if(['SELECT','INPUT','TEXTAREA'].includes(e.target.tagName))return; if(e.target.tagName==='BUTTON' && [' ','Enter'].includes(e.key))return; if(['ArrowRight','PageDown',' ','Enter'].includes(e.key)){e.preventDefault();advance();}else if(['ArrowLeft','PageUp','Backspace'].includes(e.key)){e.preventDefault();$('previous').click();}else if(e.key.toLowerCase()==='f'){fullscreen();}else if(e.key.toLowerCase()==='s'){showSources();}controls();});
+$('exit').onclick=async()=>{motionController.stop();active=false;generation++;busy=false;if(document.fullscreenElement) await document.exitFullscreen().catch(()=>{});showSources();$('player').hidden=true;$('lobby').hidden=false;$('start').textContent='Present again ↗';};
+document.addEventListener('keydown',e=>{ if(!active||$('sources').open||e.altKey||e.ctrlKey||e.metaKey) return; if(['SELECT','INPUT','TEXTAREA'].includes(e.target.tagName))return; if(e.target.tagName==='BUTTON' && [' ','Enter'].includes(e.key))return; if(['ArrowRight','PageDown',' ','Enter'].includes(e.key)){e.preventDefault();advance();}else if(['ArrowLeft','PageUp','Backspace'].includes(e.key)){e.preventDefault();$('previous').click();}else if(e.key.toLowerCase()==='f'){fullscreen();}else if(e.key.toLowerCase()==='s'){showSources();}else if(e.key.toLowerCase()==='m'){cycleMotion();}controls();});
 $('player').addEventListener('pointermove',controls);$('player').addEventListener('pointerdown',controls);$('sources').addEventListener('close',controls);
 try { const response=await fetch('/api/slides/catalog', {cache:'no-cache'});if(!response.ok)throw new Error('catalog');const catalog=await response.json();items=catalog.items;if(!items.length)throw new Error('empty');$('start').disabled=false;$('start').textContent='Start presenting ↗';$('load-status').textContent=`${items.length} starting points. Endlessly reshuffled. ← → or your clicker to advance.`; }catch{$('load-status').textContent='The slides couldn’t load. Refresh to try again.';$('start').textContent='Slides unavailable';}

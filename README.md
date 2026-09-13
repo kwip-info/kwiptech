@@ -21,6 +21,7 @@ The release phase only collects static files. It never migrates or deletes old d
 
 - Right arrow, Page Down, Space, or Enter: next unseen slide.
 - Left arrow or Page Up: back through actual displayed history.
+- M: cycle Full remix, Gentle, and Still motion. OS reduced-motion preferences take priority.
 - F: fullscreen. S: source credits. Escape closes credits or browser fullscreen.
 - Images preload four selections ahead. Failed sources are skipped after a timeout;
   credits contain only slides actually displayed.
@@ -49,7 +50,7 @@ palette, source metadata and seed. No replay-import UI is included yet.
 
 ```sh
 DEBUG=true python manage.py test tests_show --settings=show.settings
-node --test tests_show/engine.test.mjs
+node --test tests_show/*.test.mjs
 node --check static/show/app.js
 python manage.py collectstatic --noinput --settings=show.settings
 python -m pytest -q  # historical marketplace regression coverage
@@ -58,3 +59,13 @@ python -m pytest -q  # historical marketplace regression coverage
 GitHub main deployment still targets the existing Heroku app. Check the cutover
 runbook before merging: old worker and billing integrations require a one-time
 retirement check. The cutover receipt in enterprise operations records the deployed release and database retirement.
+
+## Motion
+
+Ten randomized slide transitions and independently varied content entrances use a
+separate seeded random stream. Direction, duration, stagger and reveal origin vary.
+Animations are interruptible: rapid navigation cancels the old effects, keeps at most
+one outgoing slide, and never gates the next click on animation completion. Sources
+and Finish settle motion immediately. Reduced-motion preferences bypass animation;
+Gentle uses a short dissolve, and Still disables it. Promo cards float subtly only
+when reduced motion is not requested. Motion recipes are included in session JSON.
