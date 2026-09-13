@@ -1,5 +1,5 @@
 import { createMotionController } from './motion.mjs';
-import { Ride } from './engine.mjs';
+import { Ride, presentationTitle } from './engine.mjs';
 const $ = id => document.getElementById(id);
 let items = [], ride, history = [], position = -1, active = false, busy = false, idleTimer, generation = 0;
 const imageCache = new Map();
@@ -20,9 +20,9 @@ function render(slide) {
   const { item, palette, layout, style } = slide;
   const el = node('article', `slide ${item.kind} ${palette} layout-${layout} style-${style || "studio"}`);
   el.append(node('div','slide-eyebrow', item.kind === 'image' ? item.generated ? 'Imagined by KWIP / AI-generated illustration' : item.topic + ' / an unexpected exhibit' : item.kind === 'chart' ? 'A hypothetical situation / illustrative data' : 'An invitation to improvise'));
-  const body = node('div','body'); const heading = node('h2','',item.title);
+  const body = node('div','body'); const heading = node('h2','',presentationTitle(item));
   if (item.kind === 'image') {
-    const words = node('div'); words.append(heading); if(item.subtitle) words.append(node('p','subtitle',item.subtitle));
+    const words = node('div','image-copy'); words.append(heading); if(item.subtitle) words.append(node('p','subtitle',item.subtitle));
     const frame = node('div','image-frame'), img = node('img'); img.src = item.image; img.alt = item.title; img.onerror = () => { frame.replaceChildren(node('p','subtitle','Image unavailable. Keep going →')); }; frame.append(img); body.append(words,frame);
   } else if (item.kind === 'chart') {
     body.append(heading); const chart = node('div','chart-plot'); chart.setAttribute('role','img'); chart.setAttribute('aria-label',item.labels.map((x,i)=>`${x}: ${item.values[i]}%`).join(', '));
@@ -39,8 +39,17 @@ function fitSlide() {
   const title = current?.querySelector('h2'), body = current?.querySelector('.body');
   if (!title || !body) return;
   title.style.fontSize = '';
-  let size = parseFloat(getComputedStyle(title).fontSize);
-  for (let step=0; step<25 && (body.scrollHeight > body.clientHeight + 2 || title.scrollWidth > title.clientWidth + 2); step++) { size *= .94; title.style.fontSize = `${size}px`; }
+  // Measure the title's own column as well as the complete slide body.
+  // Binary search avoids the previous 25-step shrink limit and overshrinking.
+  const copy = title.closest('.image-copy');
+  const fits = () => body.scrollHeight <= body.clientHeight + 1 && title.scrollWidth <= title.clientWidth + 1 && (!copy || copy.scrollHeight <= Math.min(copy.clientHeight, body.clientHeight) + 1);
+  if (fits()) return;
+  let low = 12, high = parseFloat(getComputedStyle(title).fontSize);
+  for (let step = 0; step < 12; step++) {
+    const mid = (low + high) / 2; title.style.fontSize = `${mid}px`;
+    if (fits()) low = mid; else high = mid;
+  }
+  title.style.fontSize = `${low}px`;
 }
 new ResizeObserver(fitSlide).observe($('stage'));
 async function advance() {

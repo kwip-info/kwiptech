@@ -69,3 +69,14 @@ one outgoing slide, and never gates the next click on animation completion. Sour
 and Finish settle motion immediately. Reduced-motion preferences bypass animation;
 Gentle uses a short dissolve, and Still disables it. Promo cards float subtly only
 when reduced motion is not requested. Motion recipes are included in session JSON.
+
+### Visual/content refinement (September 13)
+
+Mixed rides open on an image and target roughly 80% images, with no more than two
+consecutive text/chart slides. Gallery and lightbox layouts give images more space.
+Portrait screens use a tall composition; titles fit their actual available column
+with bounded binary-search sizing. Source filenames remain in credits while noisy
+headlines are simplified for display. Thirty-eight vague prompts were rewritten
+as standalone subjects. Seven local AI originals now complement the attributed
+catalog, with six illustrated landing-page previews. Image generation prompts and
+provenance are recorded in docs/slideshow/ORIGINAL_IMAGES_REFRESH_2026-09-13.md.

@@ -47,14 +47,16 @@ export class Ride {
     }
     this.colors = new Bag(palettes, this.random);
     this.styles = new Bag(styles, this.random);
-    this.layouts = { image: new Bag(['split', 'gallery', 'reverse', 'exhibit'], this.random), prompt: new Bag(['center', 'poster', 'rule', 'statement'], this.random), chart: new Bag(['chart', 'chart-wide'], this.random) };
-    this.recent = [];
+    this.layouts = { image: new Bag(['split', 'gallery', 'gallery', 'reverse', 'exhibit', 'lightbox'], this.random), prompt: new Bag(['center', 'poster', 'rule', 'statement'], this.random), chart: new Bag(['chart', 'chart-wide'], this.random) };
+    this.recent = []; this.nonImageRun = 0;
   }
   next() {
     // Independent draws avoid a detectable image / prompt / chart rotation.
-    const weights = { image: .62, prompt: .28, chart: .10 };
+    const weights = { image: .80, prompt: .15, chart: .05 };
     let draw = this.random() * this.kinds.reduce((sum, kind) => sum + weights[kind], 0);
-    const kind = this.kinds.find(kind => (draw -= weights[kind]) < 0) || this.kinds.at(-1);
+    let kind = this.kinds.find(kind => (draw -= weights[kind]) < 0) || this.kinds.at(-1);
+    if (this.kinds.includes('image') && (!this.recent.length || this.nonImageRun >= 2)) kind = 'image';
+    this.nonImageRun = kind === 'image' ? 0 : this.nonImageRun + 1;
     const topic = this.topics[kind].next();
     const pool = this.pools[`${kind}:${topic}`];
     // Use the largest possible recent exclusion window without exhausting a small pool.
@@ -70,4 +72,11 @@ export class Ride {
     return { item, motion, palette: this.palette === 'random' ? this.colors.next() : this.palette,
       style: this.style === 'random' ? this.styles.next() : this.style, layout: this.layouts[kind].next() };
   }
+}
+
+// Keep archival filenames and catalog metadata in credits, not in the headline.
+export function presentationTitle(item) {
+  if (item.kind !== 'image') return item.title;
+  const title = item.title.replace(/\.(jpe?g|png|tiff?)$/i, '').replace(/_/g, ' ').replace(/\s*\([^)]*(?:\d{4}|DSC|IMG)[^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  return title.length <= 76 && !/\b(?:DSC|IMG|DSCF)[ -]?\d|QS:|\d{7,}/i.test(title) ? title : item.topic === 'art' ? 'From the collection' : item.topic.charAt(0).toUpperCase() + item.topic.slice(1).replaceAll('-', ' ');
 }

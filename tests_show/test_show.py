@@ -43,7 +43,7 @@ class SlideTests(SimpleTestCase):
         from pathlib import Path
         from show.urls import catalog
         generated = [item for item in catalog()['items'] if item.get('generated')]
-        self.assertEqual(len(generated), 4)
+        self.assertGreaterEqual(len(generated), 7)
         for item in generated:
             self.assertTrue(item['image'].startswith('/static/show/originals/'))
             self.assertTrue(Path(item['image'].lstrip('/')).is_file())

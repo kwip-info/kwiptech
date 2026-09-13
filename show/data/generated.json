@@ -56,6 +56,51 @@
       "license_url": "https://kwip.tech/about/content",
       "credit": "AI-generated illustration, not documentary evidence",
       "changes": "Unmodified image; scaled to fit."
+    },
+    {
+      "id": "kwip-original-airport-pink-snail",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "The slowest departure",
+      "image": "/static/show/originals/airport-pink-snail.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit.",
+      "generated": true
+    },
+    {
+      "id": "kwip-original-jellyfish-laundromat",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "The underwater spin cycle",
+      "image": "/static/show/originals/jellyfish-laundromat.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit.",
+      "generated": true
+    },
+    {
+      "id": "kwip-original-thunderstorm-vending-machine",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "Weather, while you wait",
+      "image": "/static/show/originals/thunderstorm-vending-machine.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit.",
+      "generated": true
     }
   ]
 }
