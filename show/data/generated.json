@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "kwip-original-strawberry-access-ladder",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "Strawberry access ladder",
+      "image": "/static/show/originals/strawberry-access-ladder.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit."
+    },
+    {
+      "id": "kwip-original-museum-cloud",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "A cloud joins the permanent collection",
+      "image": "/static/show/originals/museum-cloud.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit."
+    },
+    {
+      "id": "kwip-original-rainbow-ironing-machine",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "The rainbow ironing machine",
+      "image": "/static/show/originals/rainbow-ironing-machine.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit."
+    },
+    {
+      "id": "kwip-original-penguin-boardroom",
+      "kind": "image",
+      "topic": "imagination",
+      "title": "The board meeting",
+      "image": "/static/show/originals/penguin-boardroom.webp",
+      "creator": "KWIP · AI-generated with OpenAI",
+      "provider": "KWIP originals",
+      "license": "AI-generated original",
+      "source": "https://kwip.tech",
+      "license_url": "https://kwip.tech/about/content",
+      "credit": "AI-generated illustration, not documentary evidence",
+      "changes": "Unmodified image; scaled to fit."
+    }
+  ]
+}

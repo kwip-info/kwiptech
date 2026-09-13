@@ -1,84 +1,60 @@
-# KWIP Data
+# KWIP — the infinite slideshow
 
-A data marketplace for people and agents at [kwip.tech](https://kwip.tech).
-Explore dataset metadata, retrieve attributable records through a bounded API,
-manage scoped service access, and track Free/Pro credits and optional Stripe overage.
-The public catalog remains empty. A bounded, operator-only US jobs POC can collect
-one attributed evaluation sample on Heroku; it does not enable customer delivery.
-MIT licensed. Canonical repository: https://github.com/kwip-info/kwiptech.
-Digest and free Django-only PyScoped remain at [kwip.info/technology](https://kwip.info/technology/).
+A spontaneous presentation player for kwip.tech. Unseen images, original prompts,
+and explicitly hypothetical charts are shuffled into independently selected layouts
+and palettes. The presenter makes the connections.
 
-## Architecture and contracts
-
-- `plane/catalog`: versioned schemas, approved sources, idempotent ingestion and snapshot reads.
-- `plane/access`: Clerk sessions, scoped hashed service keys, explicit device approval, revocation.
-- `plane/commerce`: credit ledger, Free/Pro allowances, opted-in caps, Stripe outbox/reconciliation.
-- `plane/exports`: bounded asynchronous Pro exports and expiring download artifacts.
-- `plane/market`: public exploration, API facade and browser account UI.
-
-Start with [agent/API guidance](docs/marketplace/AGENT_GUIDE.md),
-[data contract](docs/marketplace/DATA_CONTRACT.md),
-[billing contract](docs/marketplace/BILLING_CONTRACT.md),
-[export contract](docs/marketplace/EXPORT_CONTRACT.md), and
-[operations](docs/marketplace/OPERATIONS.md). The machine-readable API is served at
-`/api/v2/openapi.json`; `/agents.txt` explains safe discovery and retry behavior.
-
-The [jobs POC](docs/marketplace/JOBS_POC.md) and
-[source manifest](plane/catalog/job_sources.json) record normalization, collection
-budgets, attribution, retention and recurring source-review dates.
-
-## Development
-
-Python 3.13, Django 5.2 or 6.0, PostgreSQL 18. Install `requirements-dev.txt` in a
-virtual environment, configure `DATABASE_URL` for a dedicated development database,
-then run:
+## Run locally
 
 ```sh
-python manage.py migrate
-python manage.py runserver
-python manage.py run_marketplace_worker
+python -m pip install -r requirements-dev.txt
+DEBUG=true python manage.py runserver --settings=show.settings
 ```
 
-SQLite is supported for isolated unit tests, not concurrent account usage or billing.
-The local synthetic browser workflow is in [UAT](docs/marketplace/UAT.md).
-Use `.env-example` as a reference; Django reads environment variables directly.
-No default production credentials or datasets ship. A Django superuser can assign
-operator status after the intended Clerk identity has signed in; publisher keys require
-explicit dataset and source restrictions.
+No database, account, billing provider, AI key, or worker is needed. Runtime dependencies are Django, Gunicorn, WhiteNoise and certifi; historical test
+dependencies live in requirements-legacy.txt. The replacement
+runtime is `show/`; `plane/` and its tests are retained as historical marketplace
+source and rollback support. Heroku uses `show.wsgi:application` in the Procfile.
+The release phase only collects static files. It never migrates or deletes old data.
+
+## Presentation
+
+- Right arrow, Page Down, Space, or Enter: next unseen slide.
+- Left arrow or Page Up: back through actual displayed history.
+- F: fullscreen. S: source credits. Escape closes credits or browser fullscreen.
+- Images preload four selections ahead. Failed sources are skipped after a timeout;
+  credits contain only slides actually displayed.
+- Finish opens the source log; download before starting again or refreshing.
+- A session supports 5,000 slides, then requests a fresh ride to bound browser memory.
+
+The initial catalog contains 2,159 items. “Infinite” means continuing to recombine and
+reshuffle a finite catalog, not an unlimited supply of unique source material.
+There is no live AI generation or automatic publishing of unreviewed content.
+
+## Content and randomness
+
+See [content pipeline](docs/slideshow/CONTENT.md) and
+[Heroku cutover](docs/slideshow/HEROKU.md).
+
+A browser cryptographic seed initializes a replayable PRNG. Independent weighted
+kind draws (62% images, 28% prompts, 10% charts) avoid a fixed kind cadence. Topic
+shuffle bags prevent the largest collection from dominating images. Content,
+layouts, and palettes have their own bags, boundary repeat avoidance, and recent-ID
+suppression. This is deliberately constrained randomness; no semantic connections
+are planned. Twelve palettes and five visual styles can be fixed or shuffled. Six subject worlds filter imagery; image-only and prompt-only modes are supported.
+Session JSON stores full slide records, including actual displayed order, layout,
+palette, source metadata and seed. No replay-import UI is included yet.
+
+## Validation
 
 ```sh
-python -m pytest -q
-python manage.py collectstatic --noinput
-python -m pytest --ds=plane.settings -q
-python manage.py makemigrations --check --dry-run
+DEBUG=true python manage.py test tests_show --settings=show.settings
+node --test tests_show/engine.test.mjs
+node --check static/show/app.js
+python manage.py collectstatic --noinput --settings=show.settings
+python -m pytest -q  # historical marketplace regression coverage
 ```
 
-The second test run uses the configured PostgreSQL database and checks concurrency.
-See CI for the Django5.2/6.0 matrix. Do not point tests at production.
-
-## Deployment
-
-GitHub CI tests before deploying main to the existing Heroku app `kwip-tech`.
-The release phase runs additive migrations and static collection; scale the worker
-explicitly. Preserve database backups before deployment. Keep provider keys, backups,
-source records and build artifacts out of this repository. Production receipts belong
-in the private enterprise operations repository.
-
-Purchases stay unavailable until approved published sources contain data. Billing
-requires new `MARKET_*` price, meter and webhook configuration; old PyScoped prices
-never grant marketplace entitlements. Prices are configurable and shown as proposed
-while purchases remain closed. Paid overage is disabled by default.
-
-## PyScoped 2.0 cutover
-
-PyScoped is a free Django library with no cloud ingestion or paid tiers.
-The former v1 API, dashboard, account provisioning, and billing endpoints return
-HTTP 410. Their handlers and scheduled billing commands have been removed.
-Historical core/billing models and migrations remain solely to preserve existing
-databases and rollback; no historical tables are dropped. The SDK creates its own
-additive audit tables. See [migration](docs/sdk/migration.md).
-
-Legacy product and documentation GET/HEAD URLs permanently redirect to their static
-kwip.info counterparts. Old Digest submissions return 410 without parsing or storing
-the body; the new page uses the existing KWIP Formspree provider. Django staff
-administration and historical leads remain available. Legacy redirects and retirement responses require no database. Bundled documentation and old templates remain as historical source only.
+GitHub main deployment still targets the existing Heroku app. Check the cutover
+runbook before merging: old worker and billing integrations require a one-time
+retirement check. The cutover receipt in enterprise operations records the deployed release and database retirement.

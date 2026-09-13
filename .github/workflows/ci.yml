@@ -22,9 +22,9 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install ruff
-      - run: ruff check plane/ uat/ --select E,W,F --ignore E402,E501,E731,E741
+      - run: ruff check plane/ uat/ show/ tests_show/ --select E,W,F --ignore E402,E501,E731,E741
 
-      - run: node --check static/market/app.js && node --check static/market/theme.js
+      - run: node --check static/show/app.js && node --test tests_show/engine.test.mjs
 
   test:
     runs-on: ubuntu-latest
@@ -49,7 +49,12 @@ jobs:
           python-version: '3.13'
       - run: pip install -r requirements-dev.txt 'Django${{ matrix.django }}'
       - run: python -m pytest --tb=short -q
-      - run: python manage.py check && python manage.py migrate --noinput && python manage.py makemigrations --check --dry-run
+      - run: python manage.py test tests_show --settings=show.settings
+        env:
+          DEBUG: 'true'
+      - run: python manage.py validate_slide_catalog
+      - run: python manage.py collectstatic --noinput --settings=show.settings
+      - run: python manage.py check --settings=plane.settings && python manage.py migrate --noinput --settings=plane.settings && python manage.py makemigrations --check --dry-run --settings=plane.settings
         env:
           DATABASE_URL: postgres://kwip_test:test-only@127.0.0.1:5432/kwip_test
       - run: python manage.py collectstatic --noinput
@@ -84,15 +89,15 @@ jobs:
           export GIT_ASKPASS="$RUNNER_TEMP/heroku-askpass"
           export GIT_TERMINAL_PROMPT=0
           git push "https://git.heroku.com/${HEROKU_APP_NAME}.git" HEAD:main --force
-      - name: Verify marketplace and preserved cutover
+      - name: Verify slideshow and preserved cutover
         run: |
           curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 5 https://kwip.tech/healthz > "$RUNNER_TEMP/health.json"
-          python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/health.json")); assert d["status"] == "ok" and d["ingestion"] == "retired" and d["pyscoped"] == "2.0.0"'
+          python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/health.json")); assert d["status"] == "ok" and d["marketplace"] == "retired" and d["service"] == "kwip-slides"'
           code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --request POST --header 'Content-Type: application/json' --data '{}' https://kwip.tech/v1/sync/batch)
           test "$code" = 410
-          curl --fail --silent --show-error https://kwip.tech/ | grep -q "Find the facts."
-          curl --fail --silent --show-error https://kwip.tech/api/v2/datasets > "$RUNNER_TEMP/catalog.json"
-          python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/catalog.json")); assert isinstance(d["datasets"], list)'
+          curl --fail --silent --show-error https://kwip.tech/ | grep -q "Take it"
+          curl --fail --silent --show-error https://kwip.tech/api/slides/catalog > "$RUNNER_TEMP/catalog.json"
+          python -c 'import json,os; d=json.load(open(os.environ["RUNNER_TEMP"]+"/catalog.json")); assert len(d["items"]) >= 892'
           code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://kwip.tech/_uat/session)
           test "$code" = 404
           destination=$(curl --silent --show-error --output /dev/null --write-out '%{redirect_url}' https://kwip.tech/digest)
