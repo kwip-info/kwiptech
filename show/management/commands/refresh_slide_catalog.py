@@ -110,6 +110,9 @@ class Command(BaseCommand):
             for item in json.loads(generated_path.read_text())['items']:
                 item['generated'] = True
                 items[item['id']] = item
+        excluded_path = path.with_name('excluded.json')
+        excluded = json.loads(excluded_path.read_text()) if excluded_path.exists() else {}
+        items = {key: value for key, value in items.items() if key not in excluded}
         unique = {}
         seen = set()
         for item in items.values():

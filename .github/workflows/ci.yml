@@ -57,7 +57,7 @@ jobs:
       - run: python manage.py check --settings=plane.settings && python manage.py migrate --noinput --settings=plane.settings && python manage.py makemigrations --check --dry-run --settings=plane.settings
         env:
           DATABASE_URL: postgres://kwip_test:test-only@127.0.0.1:5432/kwip_test
-      - run: python manage.py collectstatic --noinput
+      - run: python manage.py collectstatic --noinput --settings=plane.settings
       - run: python -m pytest --tb=short -q --ds=plane.settings
         env:
           DATABASE_URL: postgres://kwip_test:test-only@127.0.0.1:5432/kwip_test

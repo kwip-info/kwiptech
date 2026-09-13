@@ -27,7 +27,7 @@ The release phase only collects static files. It never migrates or deletes old d
 - Finish opens the source log; download before starting again or refreshing.
 - A session supports 5,000 slides, then requests a fresh ride to bound browser memory.
 
-The initial catalog contains 2,159 items. “Infinite” means continuing to recombine and
+The initial catalog contains 2,158 items. “Infinite” means continuing to recombine and
 reshuffle a finite catalog, not an unlimited supply of unique source material.
 There is no live AI generation or automatic publishing of unreviewed content.
 

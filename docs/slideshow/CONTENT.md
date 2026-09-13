@@ -41,7 +41,7 @@ Each image displays a linked creator/source credit and linked license. The Sourc
 dialog includes the original provider credit and an explicit scaling-only statement.
 Downloaded JSON includes full metadata for the actually presented sequence, so
 recordings can retain credits outside the frame. Source metadata is evidence from
-the provider, not a guarantee of clearance. The published corpus contains 2,159 items after source-ID and near-duplicate title
+the provider, not a guarantee of clearance. The published corpus contains 2,158 items after source-ID and near-duplicate title
 filtering, including four explicitly labeled AI-generated originals. See
 GENERATED_IMAGES.md for full prompts and provenance.
 
