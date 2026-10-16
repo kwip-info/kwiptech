@@ -1,3 +1,13 @@
+# Archived KWIP slideshow and historical platform source
+
+This repository is retired. The owner permanently deprecated kwip.tech on September 20, 2026 and reported its Heroku app deleted. On October 16, 2026 the owner authorized repository archival and removal of the obsolete Heroku deployment setup.
+
+There is no supported production deployment from this repository. GitHub deployment credentials and the deployment workflow have been removed; Procfile and runtime.txt were removed to prevent accidental reuse. Shared provider accounts and domain registration are unchanged. Product development continues in the independent KWIP repositories.
+
+Git history preserves the former slideshow, marketplace, deployment definitions and rollback source. Historical recovery backups remain outside Git. Restoring an old service requires a new explicit owner task and fresh provider configuration; old endpoint and deployment instructions below are historical, not current operating directions.
+
+---
+
 # KWIP — the infinite slideshow
 
 A spontaneous presentation player for kwip.tech. Unseen images, original prompts,

@@ -1,3 +1,5 @@
+> **Historical only — retired September 20, 2026.** Heroku deployment setup was removed and this repository archived by owner direction October 16, 2026. Do not run the commands below against production. Git history and private backups preserve recovery; reactivation requires a new owner decision.
+
 # Heroku slideshow runtime
 
 Owner: Trevor Ewert. App: kwip-tech. Domain: https://kwip.tech.
